@@ -1,0 +1,543 @@
+Build a complete full-stack FyndMate web application in this single Replit project. FyndMate is India's first AI-powered smart shopping and virtual styling platform. Use Python FastAPI for backend and React TypeScript for frontend. Everything in one project, no external connections needed.
+
+== AVAILABLE API KEYS ==
+GROQ_API_KEY — already in secrets (use for all AI features)
+HUGGINGFACE_API_KEY — already in secrets (use for fake review detection and virtual try-on)
+RAPIDAPI_KEY — already in secrets (use for price comparison)
+
+== TECH STACK ==
+BACKEND: Python 3.11, FastAPI, Uvicorn, Groq SDK, httpx, python-dotenv, pydantic, python-multipart, Pillow, gradio_client
+FRONTEND: React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, Lucide React, Axios
+
+== PROJECT STRUCTURE ==
+/
+├── backend/
+│   ├── main.py
+│   ├── routers/
+│   │   ├── finder.py
+│   │   ├── designer.py
+│   │   └── products.py
+│   ├── services/
+│   │   ├── groq_service.py
+│   │   ├── review_service.py
+│   │   ├── tryon_service.py
+│   │   └── price_service.py
+│   ├── models/
+│   │   └── schemas.py
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── IntroAnimation.tsx
+│   │   │   ├── Navbar.tsx
+│   │   │   ├── Hero.tsx
+│   │   │   ├── AIFinder.tsx
+│   │   │   ├── AIDesigner.tsx
+│   │   │   ├── Features.tsx
+│   │   │   ├── HowItWorks.tsx
+│   │   │   ├── Marquee.tsx
+│   │   │   └── Footer.tsx
+│   │   ├── services/
+│   │   │   └── api.ts
+│   │   └── App.tsx
+│   ├── package.json
+│   └── vite.config.ts
+├── .replit
+└── replit.nix
+
+== REPLIT CONFIG (.replit) ==
+[nix]
+channel = "stable-22_11"
+
+[deployment]
+run = ["sh", "-c", "cd frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000"]
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+== replit.nix ==
+{ pkgs }: {
+  deps = [
+    pkgs.python311
+    pkgs.nodejs-18_x
+    pkgs.nodePackages.npm
+  ];
+}
+
+== backend/requirements.txt ==
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+groq==0.4.1
+httpx==0.25.2
+python-dotenv==1.0.0
+pydantic==2.5.2
+python-multipart==0.0.6
+Pillow==10.1.0
+gradio_client==0.7.3
+
+== backend/main.py ==
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os, pathlib
+from routers import finder, designer, products
+
+app = FastAPI(title="FyndMate API v1.0")
+
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+app.include_router(finder.router, prefix="/api/finder", tags=["AI Finder"])
+app.include_router(designer.router, prefix="/api/designer", tags=["AI Designer"])
+app.include_router(products.router, prefix="/api/products", tags=["Products"])
+
+frontend_dist = pathlib.Path("../frontend/dist")
+if frontend_dist.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+@app.get("/health")
+async def health():
+    return {"status": "FyndMate backend running", "version": "1.0", "ai": "Groq Llama 3.3"}
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    index = pathlib.Path("../frontend/dist/index.html")
+    if index.exists():
+        return FileResponse(str(index))
+    return {"message": "Frontend not built yet"}
+
+== backend/services/groq_service.py ==
+import os, json
+from groq import Groq
+
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+PRODUCT_PROMPT = """You are FyndMate's expert AI shopping assistant for Indian consumers.
+Analyze the need and recommend the best product within budget in Indian Rupees.
+IMPORTANT: Respond ONLY in valid JSON, no extra text:
+{
+  "product_name": "string",
+  "brand": "string",
+  "estimated_price": number,
+  "match_score": number,
+  "pros": ["string", "string", "string"],
+  "cons": ["string", "string"],
+  "explanation": "string",
+  "amazon_search": "string",
+  "flipkart_search": "string",
+  "return_risk": "low",
+  "return_risk_reason": "string",
+  "fake_review_warning": false,
+  "fake_review_reason": "string",
+  "alternatives": [
+    {"name": "string", "price": number, "reason": "string"},
+    {"name": "string", "price": number, "reason": "string"},
+    {"name": "string", "price": number, "reason": "string"}
+  ]
+}"""
+
+OUTFIT_PROMPT = """You are FyndMate's AI fashion stylist for Indian fashion.
+Suggest 6 complete outfits. ONLY respond in valid JSON:
+{
+  "outfits": [
+    {
+      "name": "string",
+      "occasion": "string",
+      "total_price": number,
+      "items": [{"name": "string", "price": number}],
+      "color_palette": ["string"],
+      "styling_tip": "string",
+      "image_url": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"
+    }
+  ]
+}"""
+
+async def search_product(query, budget, use_case):
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": PRODUCT_PROMPT},
+                {"role": "user", "content": f"Find: {query}. Budget: Rs{budget}. Use case: {use_case}"}
+            ],
+            temperature=0.3,
+            max_tokens=1000
+        )
+        text = response.choices[0].message.content
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        return json.loads(text[start:end])
+    except Exception as e:
+        return get_dummy_result(query, budget)
+
+async def get_outfits(body_type, occasion, budget, skin_tone):
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": OUTFIT_PROMPT},
+                {"role": "user", "content": f"Body: {body_type}, Occasion: {occasion}, Budget: Rs{budget}, Skin: {skin_tone}"}
+            ],
+            temperature=0.5,
+            max_tokens=1500
+        )
+        text = response.choices[0].message.content
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        return json.loads(text[start:end])
+    except:
+        return get_dummy_outfits()
+
+async def get_gifts(recipient, interests, budget):
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a gift expert for Indian market. Return JSON with gifts array."},
+                {"role": "user", "content": f"Find 5 gifts for {recipient} who likes {interests}. Budget: Rs{budget}"}
+            ],
+            temperature=0.5,
+            max_tokens=800
+        )
+        text = response.choices[0].message.content
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        return json.loads(text[start:end])
+    except:
+        return {"gifts": [{"name": "Bluetooth Speaker", "price": budget * 0.8, "reason": "Great gift"}]}
+
+def get_dummy_result(query, budget):
+    return {
+        "product_name": "Sony WF-1000XM5",
+        "brand": "Sony",
+        "estimated_price": min(1899, budget),
+        "match_score": 96,
+        "pros": ["Best noise cancellation", "30hr battery", "Crystal clear calls", "Comfortable fit"],
+        "cons": ["Bulky case", "Premium price"],
+        "explanation": f"Best match for {query} within Rs{budget}.",
+        "amazon_search": "Sony WF-1000XM5",
+        "flipkart_search": "Sony WF-1000XM5 earphones",
+        "return_risk": "low",
+        "return_risk_reason": "3.2% return rate only",
+        "fake_review_warning": False,
+        "fake_review_reason": "Reviews appear genuine",
+        "alternatives": [
+            {"name": "boAt Rockerz 255 Pro+", "price": 999, "reason": "Best budget"},
+            {"name": "JBL Tune 230NC TWS", "price": 1599, "reason": "Great bass"},
+            {"name": "Noise Buds VS104", "price": 799, "reason": "Most affordable"}
+        ]
+    }
+
+def get_dummy_outfits():
+    return {"outfits": [
+        {"name": "Urban College Vibe", "occasion": "College", "total_price": 1650, "items": [{"name": "White tee", "price": 499}, {"name": "Blue jeans", "price": 899}], "color_palette": ["white", "blue"], "styling_tip": "Roll up jeans slightly", "image_url": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"},
+        {"name": "Office Power Look", "occasion": "Office", "total_price": 2800, "items": [{"name": "Blazer", "price": 1299}, {"name": "Trousers", "price": 899}], "color_palette": ["black", "white"], "styling_tip": "Add pocket square", "image_url": "https://images.unsplash.com/photo-1594938298603-c8148c4b4d24?w=400"},
+        {"name": "Festival Glow", "occasion": "Festival", "total_price": 2200, "items": [{"name": "Kurti", "price": 999}, {"name": "Palazzo", "price": 699}], "color_palette": ["red", "gold"], "styling_tip": "Add bangles", "image_url": "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400"},
+        {"name": "Gym Beast Mode", "occasion": "Gym", "total_price": 1750, "items": [{"name": "Dry fit tee", "price": 599}, {"name": "Track pants", "price": 749}], "color_palette": ["black", "neon"], "styling_tip": "Choose moisture-wicking", "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400"},
+        {"name": "Wedding Guest Glam", "occasion": "Wedding", "total_price": 3600, "items": [{"name": "Silk saree", "price": 1999}, {"name": "Heels", "price": 899}], "color_palette": ["pink", "gold"], "styling_tip": "Gujarati drape style", "image_url": "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400"},
+        {"name": "Casual Weekend", "occasion": "Casual", "total_price": 1299, "items": [{"name": "Linen shirt", "price": 499}, {"name": "Chinos", "price": 599}], "color_palette": ["beige", "brown"], "styling_tip": "Leave top button open", "image_url": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
+    ]}
+
+== backend/services/review_service.py ==
+import httpx, os
+
+async def analyze_reviews(reviews: list):
+    token = os.environ.get("HUGGINGFACE_API_KEY")
+    if not token or not reviews:
+        return {"trust_score": 82, "fake_percentage": 18, "summary": "Reviews appear mostly genuine"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"inputs": reviews[:3]}
+            )
+            results = response.json()
+            if isinstance(results, list):
+                fake_count = sum(1 for r in results if r and isinstance(r, list) and r[0].get("label") == "LABEL_2")
+                fake_pct = int((fake_count / len(results)) * 100)
+                return {"trust_score": 100 - fake_pct, "fake_percentage": fake_pct, "summary": "Suspicious patterns detected" if fake_pct > 40 else "Reviews appear genuine"}
+    except:
+        pass
+    return {"trust_score": 80, "fake_percentage": 20, "summary": "Analysis complete"}
+
+== backend/services/tryon_service.py ==
+import base64, tempfile, os, httpx, asyncio
+
+async def run_virtual_tryon(person_image_base64: str, clothing_image_url: str):
+    if not os.environ.get("HUGGINGFACE_API_KEY"):
+        return {"success": False, "message": "HuggingFace API key not configured"}
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _run_tryon_sync, person_image_base64, clothing_image_url)
+        return result
+    except Exception as e:
+        return {"success": False, "message": "Try-on busy. Please retry in 30 seconds."}
+
+def _run_tryon_sync(person_image_base64, clothing_image_url):
+    try:
+        from gradio_client import Client, handle_file
+        client = Client("yisol/IDM-VTON", hf_token=os.environ.get("HUGGINGFACE_API_KEY"))
+        person_bytes = base64.b64decode(person_image_base64)
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(person_bytes)
+            person_path = f.name
+        clothing_data = httpx.get(clothing_image_url, timeout=15.0).content
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(clothing_data)
+            clothing_path = f.name
+        result = client.predict(
+            dict({"background": handle_file(person_path), "layers": [], "composite": None}),
+            dict({"background": handle_file(clothing_path), "layers": [], "composite": None}),
+            "FyndMate virtual try-on", True, True, 20, 20,
+            api_name="/tryon"
+        )
+        with open(result[0], "rb") as img:
+            result_b64 = base64.b64encode(img.read()).decode()
+        os.unlink(person_path)
+        os.unlink(clothing_path)
+        return {"success": True, "result_image": result_b64}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+== backend/services/price_service.py ==
+import httpx, os
+
+async def compare_prices(product_name: str, budget: float):
+    key = os.environ.get("RAPIDAPI_KEY")
+    if not key:
+        return get_dummy_prices(product_name, budget)
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            amazon = await client.get(
+                "https://real-time-amazon-data.p.rapidapi.com/search",
+                params={"query": product_name, "country": "IN", "page": "1"},
+                headers={"X-RapidAPI-Key": key, "X-RapidAPI-Host": "real-time-amazon-data.p.rapidapi.com"}
+            )
+            data = amazon.json()
+            products = data.get("data", {}).get("products", [])
+            amazon_price = None
+            amazon_url = f"https://amazon.in/s?k={product_name.replace(' ', '+')}"
+            if products:
+                p = products[0]
+                try:
+                    amazon_price = float(str(p.get("product_price", "")).replace("₹","").replace(",","").strip())
+                    amazon_url = p.get("product_url", amazon_url)
+                except:
+                    pass
+            flipkart_price = (amazon_price or budget) * 1.03
+            return {
+                "amazon": {"price": amazon_price or budget * 0.95, "url": amazon_url, "affiliate_url": f"{amazon_url}&tag=fyndmate-21", "delivery": "2-3 days"},
+                "flipkart": {"price": flipkart_price, "url": f"https://flipkart.com/search?q={product_name}", "affiliate_url": f"https://flipkart.com/search?q={product_name}", "delivery": "3-4 days"},
+                "myntra": {"url": f"https://myntra.com/search?q={product_name}", "note": "Check for fashion items"},
+                "best_deal": "amazon",
+                "savings": abs((amazon_price or budget) - flipkart_price)
+            }
+    except:
+        return get_dummy_prices(product_name, budget)
+
+def get_dummy_prices(product_name, budget):
+    return {
+        "amazon": {"price": budget * 0.95, "url": f"https://amazon.in/s?k={product_name}", "affiliate_url": f"https://amazon.in/s?k={product_name}&tag=fyndmate-21", "delivery": "2-3 days"},
+        "flipkart": {"price": budget * 0.98, "url": f"https://flipkart.com/search?q={product_name}", "affiliate_url": f"https://flipkart.com/search?q={product_name}", "delivery": "3-4 days"},
+        "myntra": {"url": f"https://myntra.com/search?q={product_name}", "note": "Check for fashion items"},
+        "best_deal": "amazon",
+        "savings": budget * 0.03
+    }
+
+== backend/models/schemas.py ==
+from pydantic import BaseModel
+
+class SearchRequest(BaseModel):
+    query: str
+    budget: float = 2000
+    use_case: str = "general"
+    platform: str = "all"
+
+class GiftRequest(BaseModel):
+    recipient: str
+    interests: str
+    budget: float = 1500
+
+class OutfitRequest(BaseModel):
+    body_type: str = "athletic"
+    occasion: str = "casual"
+    budget: float = 2000
+    skin_tone: str = "medium"
+    style_preference: str = "casual"
+
+class TryOnRequest(BaseModel):
+    person_image_base64: str
+    clothing_image_url: str
+
+class FestivalRequest(BaseModel):
+    festival: str = "Diwali"
+    budget: float = 2000
+    body_type: str = "athletic"
+
+class PriceRequest(BaseModel):
+    product_name: str
+    budget: float = 2000
+
+== backend/routers/finder.py ==
+from fastapi import APIRouter
+from models.schemas import SearchRequest, GiftRequest
+from services.groq_service import search_product, get_gifts
+from services.price_service import compare_prices
+
+router = APIRouter()
+
+@router.post("/search")
+async def search(req: SearchRequest):
+    result = await search_product(req.query, req.budget, req.use_case)
+    prices = await compare_prices(result.get("product_name", req.query), req.budget)
+    result["prices"] = prices
+    result["affiliate_links"] = {"amazon": prices["amazon"]["affiliate_url"], "flipkart": prices["flipkart"]["affiliate_url"]}
+    return {"success": True, "main_product": result, "prices": prices}
+
+@router.post("/gift-finder")
+async def gift_finder(req: GiftRequest):
+    result = await get_gifts(req.recipient, req.interests, req.budget)
+    return {"success": True, **result}
+
+== backend/routers/designer.py ==
+from fastapi import APIRouter
+from models.schemas import OutfitRequest, TryOnRequest, FestivalRequest
+from services.groq_service import get_outfits
+from services.tryon_service import run_virtual_tryon
+
+router = APIRouter()
+
+@router.post("/suggest-outfits")
+async def suggest_outfits(req: OutfitRequest):
+    result = await get_outfits(req.body_type, req.occasion, req.budget, req.skin_tone)
+    return {"success": True, **result}
+
+@router.post("/try-on")
+async def try_on(req: TryOnRequest):
+    return await run_virtual_tryon(req.person_image_base64, req.clothing_image_url)
+
+@router.post("/festival-outfits")
+async def festival_outfits(req: FestivalRequest):
+    result = await get_outfits(req.body_type, f"{req.festival} festival", req.budget, "medium")
+    return {"success": True, **result}
+
+@router.post("/save-look")
+async def save_look(data: dict):
+    return {"success": True, "message": "Look saved successfully"}
+
+@router.post("/share-look")
+async def share_look(data: dict):
+    return {"success": True, "share_url": "https://fyndmate.com/look/shared"}
+
+== backend/routers/products.py ==
+from fastapi import APIRouter
+from models.schemas import PriceRequest
+from services.price_service import compare_prices
+
+router = APIRouter()
+
+@router.post("/compare")
+async def compare(req: PriceRequest):
+    result = await compare_prices(req.product_name, req.budget)
+    return {"success": True, **result}
+
+== frontend/vite.config.ts ==
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': { target: 'http://localhost:8000', changeOrigin: true },
+      '/health': { target: 'http://localhost:8000', changeOrigin: true }
+    }
+  }
+})
+
+== frontend/src/services/api.ts ==
+const BASE = '/api'
+
+export const api = {
+  searchProduct: async (query: string, budget: number, useCase: string, platform: string) => {
+    const r = await fetch(`${BASE}/finder/search`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query, budget, use_case: useCase, platform}) })
+    return r.json()
+  },
+  getOutfits: async (bodyType: string, occasion: string, budget: number, skinTone: string) => {
+    const r = await fetch(`${BASE}/designer/suggest-outfits`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({body_type: bodyType, occasion, budget, skin_tone: skinTone}) })
+    return r.json()
+  },
+  virtualTryOn: async (personImageBase64: string, clothingImageUrl: string) => {
+    const r = await fetch(`${BASE}/designer/try-on`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({person_image_base64: personImageBase64, clothing_image_url: clothingImageUrl}) })
+    return r.json()
+  },
+  giftFinder: async (recipient: string, interests: string, budget: number) => {
+    const r = await fetch(`${BASE}/finder/gift-finder`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({recipient, interests, budget}) })
+    return r.json()
+  },
+  comparePrices: async (productName: string, budget: number) => {
+    const r = await fetch(`${BASE}/products/compare`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({product_name: productName, budget}) })
+    return r.json()
+  }
+}
+
+== FRONTEND DESIGN INSTRUCTIONS ==
+
+Global CSS (src/index.css):
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: #050508; color: white; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(#7C3AED, #06B6D4); border-radius: 2px; }
+.glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; }
+.glass-purple { background: rgba(124,58,237,0.06); backdrop-filter: blur(20px); border: 1px solid rgba(124,58,237,0.15); border-radius: 16px; }
+.glass-cyan { background: rgba(6,182,212,0.06); backdrop-filter: blur(20px); border: 1px solid rgba(6,182,212,0.15); border-radius: 16px; }
+.gradient-text { background: linear-gradient(135deg, #A78BFA, #06B6D4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.shimmer-btn { background: linear-gradient(110deg, #6D28D9, #7C3AED, #A78BFA, #7C3AED, #6D28D9); background-size: 250% 100%; animation: shimmer 3s linear infinite; border: none; color: white; cursor: pointer; border-radius: 12px; padding: 14px 28px; font-weight: 700; font-size: 16px; transition: transform 0.2s, box-shadow 0.2s; }
+.shimmer-btn:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(124,58,237,0.5); }
+.cyan-btn { background: linear-gradient(110deg, #0891B2, #06B6D4, #67E8F9, #06B6D4, #0891B2); background-size: 250% 100%; animation: shimmer 3s linear infinite; border: none; color: white; cursor: pointer; border-radius: 12px; padding: 14px 28px; font-weight: 700; font-size: 16px; }
+@keyframes shimmer { from { background-position: 200% center; } to { background-position: -200% center; } }
+@keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+@keyframes pulseGlow { 0%,100% { box-shadow: 0 0 20px rgba(124,58,237,0.3); } 50% { box-shadow: 0 0 50px rgba(124,58,237,0.6); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-float { animation: float 7s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
+.animate-marquee { animation: marquee 30s linear infinite; }
+.animate-marquee-reverse { animation: marquee 25s linear infinite reverse; }
+
+Build these complete components with full working code:
+
+IntroAnimation.tsx - 3 second cinematic intro. Black screen. Purple light burst from center expanding. FyndMate logo builds letter by letter - F,y,n,d in white then M,a,t,e in purple-cyan gradient. Each letter blurs in with 0.07s stagger. Sparkle icon spins in above logo. Tagline "Shop Smarter · Style Better" fades up in white/40. Thin gradient loading bar fills. Everything zooms toward viewer scale(1.15) and fades. Homepage fades in underneath. Use sessionStorage key "fyndmate_intro" to only show on first visit.
+
+Navbar.tsx - Fixed top. rgba(5,5,8,0.85) background + backdrop-blur. Logo: purple Sparkles icon + FyndMate gradient-text font-black. Center links: Home/AI Finder/AI Designer/Features with hover:text-purple-400. Right: Try Free shimmer-btn rounded-full. On scroll past 50px increase bg opacity.
+
+Hero.tsx - Full screen min-h-screen. Background: two spotlight SVG beams (purple left, cyan right, animate-spotlight opacity 0 to 1). Three large blurred orbs slowly floating. Purple grid bg-[linear-gradient(rgba(124,58,237,0.04)_1px,transparent_1px)] bg-[size:72px_72px]. Canvas with 60 particles. Content center: Green live badge with pulse dot. Headline each word animates with blur filter from 10px to 0 staggered using framer-motion. "Shop Smarter." white 80px font-black. "Style Better." gradient-text 80px font-black. Subheadline white/50. Two buttons: shimmer-btn "Find Products with AI" + glass border-white/10 "Style Me with AI". Stats: 10 sec purple, 96% gradient, Rs2400 cyan. Four glass-purple trust badges. Floating product card right side with animate-float glass-purple rotate-3.
+
+Marquee.tsx - Two rows. Row 1 scrolls left animate-marquee. Row 2 scrolls right animate-marquee-reverse. Content: all 24 feature names separated by colored diamonds. Fade edges with [mask-image:linear-gradient(90deg,transparent,black_10%,black_90%,transparent)]. Border top+bottom rgba(255,255,255,0.05).
+
+AIFinder.tsx - Section id="finder". Large glass card animate-pulse-glow. Textarea dark bg purple focus glow. Filter row: budget number input + use case chips Gaming/Travel/Gym/Office/Daily/Gift + platform chips Amazon/Flipkart/Myntra/All. shimmer-btn "Find with AI". Loading: purple spinner + cycling text every 600ms. Result: main product glass-purple card with product info, match score shimmer badge, pros green CheckCircle, cons red XCircle, price strip with best deal green glow, return risk pill, fake review badge, explanation expandable, two buy affiliate buttons. Three alternative cards grid. All animate in with framer-motion stagger.
+
+AIDesigner.tsx - Section id="designer". Split grid. Left glass card: dashed cyan upload zone with Camera icon + drag-drop + preview. Body type pills Slim/Athletic/Curvy/Plus. Occasion chips College/Office/Wedding/Party/Festival/Gym. Budget range slider. Skin tone color circles. cyan-btn "Style Me with AI". Right glass card: default pulsing placeholder Sparkles icon. Loading: two spinning rings opposite directions purple+cyan. Result: try-on image cyan glow + outfit details card + "Buy Complete Look" button + Heart save + Share2 share. Below: filter tabs + 3-column outfit grid bento style with hover lift.
+
+Features.tsx - Section with bento grid ALL 24 features. Two large cards span-2 cols: feature 1+2 and feature 14+13. Small cards for rest. Each: glass card, colored icon glow, feature name bold, 1-line description. Feature 6 Fake Review Detection red accent. Feature 11 Voice Search special cyan. Feature 14 Virtual Try-On purple accent. Feature 24 Savings Tracker green accent. All animate in stagger on scroll useInView.
+
+HowItWorks.tsx - Three steps. Step 1 Search icon "Describe Your Need". Step 2 Cpu icon "AI Finds and Styles". Step 3 ShoppingBag icon "Buy with Confidence". Animated dotted connecting line. Each step glass-purple card stagger animate in.
+
+Footer.tsx - Dark. FyndMate gradient logo. Tagline. Links row. "Made in India with AI" badge. Copyright 2025.
+
+App.tsx - Import and render: IntroAnimation (conditional on sessionStorage), then motion.div fade in with all sections: Navbar, Hero, Marquee, AIFinder, AIDesigner, Features, HowItWorks, Footer.
+
+== FINAL INSTRUCTIONS ==
+1. Create ALL files with complete working code - no placeholders
+2. Every feature falls back to dummy data if API key missing  
+3. All 24 features visible in bento grid
+4. Run both frontend and backend together
+5. Show live URL when complete
+6. FastAPI docs at /docs
+7. Dark theme throughout
+8. Search "earphones under 2000" shows real Groq AI response
+9. The design must look like a funded Indian AI startup - premium dark glass UI

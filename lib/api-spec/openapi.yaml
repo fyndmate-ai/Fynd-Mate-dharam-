@@ -1,22 +1,26 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: FyndMate API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: finder
+    description: AI Product Finder
+  - name: designer
+    description: AI Fashion Designer
+  - name: products
+    description: Product operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +28,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /finder/search:
+    post:
+      operationId: searchProduct
+      tags: [finder]
+      summary: AI product search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+
+  /finder/gift-finder:
+    post:
+      operationId: findGifts
+      tags: [finder]
+      summary: AI gift recommendations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GiftRequest"
+      responses:
+        "200":
+          description: Gifts found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GiftResponse"
+
+  /designer/suggest-outfits:
+    post:
+      operationId: suggestOutfits
+      tags: [designer]
+      summary: AI outfit suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutfitRequest"
+      responses:
+        "200":
+          description: Outfits suggested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutfitResponse"
+
+  /products/compare:
+    post:
+      operationId: comparePrices
+      tags: [products]
+      summary: Compare prices across platforms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceRequest"
+      responses:
+        "200":
+          description: Prices compared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +115,276 @@ components:
       required:
         - status
 
+    SearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        budget:
+          type: number
+          default: 2000
+        use_case:
+          type: string
+          default: general
+        platform:
+          type: string
+          default: all
+      required:
+        - query
+
+    Alternative:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        reason:
+          type: string
+      required:
+        - name
+        - price
+        - reason
+
+    PlatformPrice:
+      type: object
+      properties:
+        price:
+          type: number
+        url:
+          type: string
+        affiliate_url:
+          type: string
+        delivery:
+          type: string
+      required:
+        - price
+        - url
+
+    Prices:
+      type: object
+      properties:
+        amazon:
+          $ref: "#/components/schemas/PlatformPrice"
+        flipkart:
+          $ref: "#/components/schemas/PlatformPrice"
+        best_deal:
+          type: string
+        savings:
+          type: number
+      required:
+        - amazon
+        - flipkart
+        - best_deal
+        - savings
+
+    MainProduct:
+      type: object
+      properties:
+        product_name:
+          type: string
+        brand:
+          type: string
+        estimated_price:
+          type: number
+        match_score:
+          type: number
+        pros:
+          type: array
+          items:
+            type: string
+        cons:
+          type: array
+          items:
+            type: string
+        explanation:
+          type: string
+        amazon_search:
+          type: string
+        flipkart_search:
+          type: string
+        return_risk:
+          type: string
+        return_risk_reason:
+          type: string
+        fake_review_warning:
+          type: boolean
+        fake_review_reason:
+          type: string
+        alternatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alternative"
+        prices:
+          $ref: "#/components/schemas/Prices"
+        affiliate_links:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+        - product_name
+        - brand
+        - estimated_price
+        - match_score
+        - pros
+        - cons
+        - explanation
+        - return_risk
+        - fake_review_warning
+
+    SearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        main_product:
+          $ref: "#/components/schemas/MainProduct"
+        prices:
+          $ref: "#/components/schemas/Prices"
+      required:
+        - success
+        - main_product
+
+    GiftRequest:
+      type: object
+      properties:
+        recipient:
+          type: string
+        interests:
+          type: string
+        budget:
+          type: number
+          default: 1500
+      required:
+        - recipient
+        - interests
+
+    Gift:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        reason:
+          type: string
+      required:
+        - name
+        - price
+        - reason
+
+    GiftResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        gifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Gift"
+      required:
+        - success
+        - gifts
+
+    OutfitRequest:
+      type: object
+      properties:
+        body_type:
+          type: string
+          default: athletic
+        occasion:
+          type: string
+          default: casual
+        budget:
+          type: number
+          default: 2000
+        skin_tone:
+          type: string
+          default: medium
+        style_preference:
+          type: string
+          default: casual
+      required: []
+
+    OutfitItem:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+      required:
+        - name
+        - price
+
+    Outfit:
+      type: object
+      properties:
+        name:
+          type: string
+        occasion:
+          type: string
+        total_price:
+          type: number
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutfitItem"
+        color_palette:
+          type: array
+          items:
+            type: string
+        styling_tip:
+          type: string
+        image_url:
+          type: string
+      required:
+        - name
+        - occasion
+        - total_price
+        - items
+        - styling_tip
+
+    OutfitResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        outfits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Outfit"
+      required:
+        - success
+        - outfits
+
+    PriceRequest:
+      type: object
+      properties:
+        product_name:
+          type: string
+        budget:
+          type: number
+          default: 2000
+      required:
+        - product_name
+
+    PriceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        amazon:
+          $ref: "#/components/schemas/PlatformPrice"
+        flipkart:
+          $ref: "#/components/schemas/PlatformPrice"
+        best_deal:
+          type: string
+        savings:
+          type: number
+      required:
+        - success
+        - amazon
+        - flipkart
+        - best_deal
+        - savings

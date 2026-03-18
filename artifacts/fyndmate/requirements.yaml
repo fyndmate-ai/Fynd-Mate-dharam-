@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "Required for complex staggered text reveals, cinematic intro, and smooth layout transitions"
+  "react-dropzone": "Required for the drag-and-drop virtual try-on image upload interface"
+  "@radix-ui/react-slider": "Required for the stylized budget range slider in the AI Designer"
+  "@radix-ui/react-tabs": "Required for the Search vs Gift Finder tabs"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to cleanly merge Tailwind classes"
+
+images:
+  - path: "artifacts/fyndmate/public/images/indian-fashion-placeholder.png"
+    description: "High fashion editorial shot of an Indian model in modern ethnic wear, dark cinematic lighting, neon purple and cyan edge lights"
+    aspect_ratio: "3:4"
+  - path: "artifacts/fyndmate/public/images/hero-bg-orbs.png"
+    description: "Abstract dark background with glowing out-of-focus orbs in deep purple and cyan, glassmorphism style"
+    aspect_ratio: "16:9"

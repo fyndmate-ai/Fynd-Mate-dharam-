@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "FyndMate"
+version = "1.0.0"
+id = "artifacts/fyndmate"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 18491
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/fyndmate run dev"
+
+[services.env]
+PORT = "18491"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/fyndmate", "run", "build"]
+publicDir = "artifacts/fyndmate/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
