@@ -1,28 +1,25 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 
-// Components
 import { IntroAnimation } from "./components/IntroAnimation";
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
 import { Marquee } from "./components/Marquee";
-import { AIFinder } from "./components/AIFinder";
-import { AIDesigner } from "./components/AIDesigner";
 import { Features } from "./components/Features";
 import { HowItWorks } from "./components/HowItWorks";
 import { Footer } from "./components/Footer";
+import { FinderPage } from "./pages/FinderPage";
+import { DesignerPage } from "./pages/DesignerPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
+    queries: { refetchOnWindowFocus: false, retry: 1 },
   },
 });
 
-function Home() {
+function HomePage() {
   const [introDone, setIntroDone] = useState(
     !!sessionStorage.getItem("fyndmate_intro")
   );
@@ -30,7 +27,6 @@ function Home() {
   return (
     <>
       <IntroAnimation onComplete={() => setIntroDone(true)} />
-      
       <AnimatePresence>
         {introDone && (
           <motion.main
@@ -42,8 +38,6 @@ function Home() {
             <Navbar />
             <Hero />
             <Marquee />
-            <AIFinder />
-            <AIDesigner />
             <Features />
             <HowItWorks />
             <Footer />
@@ -57,7 +51,13 @@ function Home() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Home />
+      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <Switch>
+          <Route path="/finder" component={FinderPage} />
+          <Route path="/designer" component={DesignerPage} />
+          <Route component={HomePage} />
+        </Switch>
+      </WouterRouter>
     </QueryClientProvider>
   );
 }

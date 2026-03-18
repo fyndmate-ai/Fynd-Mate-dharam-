@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
 import { Search, Zap, Clock, TrendingDown, Sparkles } from "lucide-react";
+import { useLocation } from "wouter";
 
 export function Hero() {
+  const [, navigate] = useLocation();
   const headlineWords1 = "Shop Smarter.".split(" ");
   const headlineWords2 = "Style Better.".split(" ");
 
@@ -72,20 +74,27 @@ export function Hero() {
             India's most intelligent shopping companion. Find perfect products, avoid fake reviews, and let AI style your next look.
           </motion.p>
 
+          {/* CTA Buttons */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.1 }}
             className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
           >
-            <a href="#finder" className="shimmer-btn animate-shimmer text-center px-8 py-4 rounded-xl flex items-center justify-center gap-2 text-lg">
+            <button
+              onClick={() => navigate("/finder")}
+              className="shimmer-btn animate-shimmer text-center px-8 py-4 rounded-xl flex items-center justify-center gap-2 text-lg"
+            >
               <Search className="w-5 h-5" />
               Find Products with AI
-            </a>
-            <a href="#designer" className="glass border border-white/10 hover:bg-white/5 transition-colors text-white text-center px-8 py-4 rounded-xl flex items-center justify-center gap-2 font-semibold text-lg">
+            </button>
+            <button
+              onClick={() => navigate("/designer")}
+              className="glass border border-white/10 hover:bg-white/5 transition-colors text-white text-center px-8 py-4 rounded-xl flex items-center justify-center gap-2 font-semibold text-lg"
+            >
               <Zap className="w-5 h-5 text-cyan-400" />
               Style Me with AI
-            </a>
+            </button>
           </motion.div>
 
           {/* Stats Badges */}
@@ -112,7 +121,7 @@ export function Hero() {
           </motion.div>
         </div>
 
-        {/* Right Content - Floating Cards */}
+        {/* Right Content - Floating Card */}
         <div className="hidden lg:block relative h-[600px] w-full perspective-1000">
           <motion.div 
             initial={{ opacity: 0, rotateY: 20, rotateX: 10, z: -100 }}
@@ -128,8 +137,6 @@ export function Hero() {
                 <span className="glass px-3 py-1 text-xs font-bold text-green-400">98% Match</span>
               </div>
               <div className="h-48 rounded-xl bg-[#0a0a0f] border border-white/5 mb-6 overflow-hidden relative">
-                {/* using Unsplash for a tech/lifestyle product placeholder */}
-                {/* floating headphones product aesthetic */}
                 <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop" alt="Product" className="w-full h-full object-cover opacity-80 mix-blend-lighten" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                 <div className="absolute bottom-4 left-4">
@@ -152,6 +159,16 @@ export function Hero() {
                   ₹29,990
                 </div>
               </div>
+
+              {/* Prompt button on card */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate("/finder")}
+                className="mt-5 w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-sm flex items-center justify-center gap-2"
+              >
+                <Search className="w-4 h-4" /> Search Something Like This
+              </motion.button>
             </div>
           </motion.div>
         </div>
