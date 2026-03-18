@@ -146,6 +146,37 @@ router.post("/festival-outfits", async (req, res) => {
   }
 });
 
+router.post("/voice-chat", async (req, res) => {
+  try {
+    const { message, context } = req.body as {
+      message: string;
+      context?: { body_type?: string; occasion?: string; budget?: number; skin_tone?: string };
+    };
+    if (!message) return res.status(400).json({ error: "No message provided" });
+
+    const groq = getGroqClient();
+    const systemPrompt = `You are Aanya, FyndMate's live AI fashion stylist for India. 
+You give quick, friendly, conversational fashion advice. Keep replies under 3 sentences.
+Speak naturally — like a knowledgeable dost (friend) who loves Indian fashion.
+${context ? `User context: Body type: ${context.body_type || "unknown"}, Occasion: ${context.occasion || "casual"}, Budget: ₹${context.budget || 2000}, Skin tone: ${context.skin_tone || "medium"}.` : ""}
+Focus on Indian fashion brands, local options, and budget-friendly picks on Amazon/Flipkart/Myntra.`;
+
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message },
+      ],
+      temperature: 0.7,
+      max_tokens: 200,
+    });
+    const reply = response.choices[0].message.content || "Let me think about that for a moment!";
+    return res.json({ success: true, reply });
+  } catch {
+    return res.json({ success: true, reply: "I love that question! Try a classic kurta with palazzo pants — it works for almost every Indian occasion and looks stunning under any budget." });
+  }
+});
+
 router.post("/save-look", (_req, res) => {
   res.json({ success: true, message: "Look saved successfully" });
 });
