@@ -9,13 +9,13 @@ export function AIFinder() {
   
   // Search State
   const [query, setQuery] = useState("");
-  const [budget, setBudget] = useState<number>(2000);
   const [useCase, setUseCase] = useState("general");
   const [platform, setPlatform] = useState("all");
 
   // Gift State
   const [recipient, setRecipient] = useState("");
   const [interests, setInterests] = useState("");
+  const [giftBudget, setGiftBudget] = useState<number>(2000);
 
   const searchMutation = useSearchProduct();
   const giftMutation = useFindGifts();
@@ -25,12 +25,12 @@ export function AIFinder() {
 
   const handleSearch = () => {
     if (!query) return;
-    searchMutation.mutate({ data: { query, budget, use_case: useCase, platform } });
+    searchMutation.mutate({ data: { query, use_case: useCase, platform } });
   };
 
   const handleGiftSearch = () => {
     if (!recipient || !interests) return;
-    giftMutation.mutate({ data: { recipient, interests, budget } });
+    giftMutation.mutate({ data: { recipient, interests, budget: giftBudget } });
   };
 
   const loadingMessages = [
@@ -89,29 +89,18 @@ export function AIFinder() {
                 />
               </div>
               
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 block">Max Budget (₹)</label>
-                  <input 
-                    type="number" 
-                    value={budget}
-                    onChange={(e) => setBudget(Number(e.target.value))}
-                    className="w-full bg-[#050508]/50 border border-purple-500/20 rounded-lg p-3 text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 block">Use Case</label>
-                  <div className="flex flex-wrap gap-2">
-                    {useCases.map(uc => (
-                      <button 
-                        key={uc}
-                        onClick={() => setUseCase(uc.toLowerCase())}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${useCase === uc.toLowerCase() ? "bg-purple-500/20 border-purple-500 text-purple-300" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"}`}
-                      >
-                        {uc}
-                      </button>
-                    ))}
-                  </div>
+              <div>
+                <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 block">Use Case</label>
+                <div className="flex flex-wrap gap-2">
+                  {useCases.map(uc => (
+                    <button 
+                      key={uc}
+                      onClick={() => setUseCase(uc.toLowerCase())}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${useCase === uc.toLowerCase() ? "bg-purple-500/20 border-purple-500 text-purple-300" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"}`}
+                    >
+                      {uc}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -153,8 +142,8 @@ export function AIFinder() {
                   <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 block">Budget (₹)</label>
                   <input 
                     type="number" 
-                    value={budget}
-                    onChange={(e) => setBudget(Number(e.target.value))}
+                    value={giftBudget}
+                    onChange={(e) => setGiftBudget(Number(e.target.value))}
                     className="w-full bg-[#050508]/50 border border-cyan-500/20 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>

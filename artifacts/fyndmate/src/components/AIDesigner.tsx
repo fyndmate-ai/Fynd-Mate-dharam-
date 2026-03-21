@@ -1,17 +1,40 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Camera, Sparkles, Loader2, Heart, Share2, ShoppingBag } from "lucide-react";
+import { Upload, Camera, Sparkles, Loader2, Heart, Share2, ShoppingBag, CheckCircle2, Pencil } from "lucide-react";
 import * as Slider from "@radix-ui/react-slider";
 import { useSuggestOutfits } from "@workspace/api-client-react";
 import { formatINR } from "@/lib/utils";
 
+const LS_BODY = "fm_body_type";
+const LS_SKIN = "fm_skin_tone";
+
 export function AIDesigner() {
   const [image, setImage] = useState<string | null>(null);
-  const [bodyType, setBodyType] = useState("Athletic");
+  const [bodyType, setBodyType] = useState(() => localStorage.getItem(LS_BODY) || "Athletic");
   const [occasion, setOccasion] = useState("Casual");
   const [budget, setBudget] = useState([3000]);
-  const [skinTone, setSkinTone] = useState("Medium");
+  const [skinTone, setSkinTone] = useState(() => localStorage.getItem(LS_SKIN) || "Medium");
+  const [profileSaved, setProfileSaved] = useState(() => !!localStorage.getItem(LS_BODY));
+  const [editingProfile, setEditingProfile] = useState(() => !localStorage.getItem(LS_BODY));
+  const [justSaved, setJustSaved] = useState(false);
+
+  const saveProfile = (bt: string, st: string) => {
+    localStorage.setItem(LS_BODY, bt);
+    localStorage.setItem(LS_SKIN, st);
+    setProfileSaved(true);
+    setEditingProfile(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  };
+
+  const handleBodyTypeChange = (type: string) => {
+    setBodyType(type);
+  };
+
+  const handleSkinToneChange = (tone: string) => {
+    setSkinTone(tone);
+  };
 
   const outfitMutation = useSuggestOutfits();
 
@@ -96,20 +119,102 @@ export function AIDesigner() {
             </div>
 
             <div className="glass p-6 space-y-6">
-              <div>
-                <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-3 block">Body Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {bodyTypes.map(type => (
+
+              {/* ── Saved Profile Card / Edit Panel ── */}
+              {profileSaved && !editingProfile ? (
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-cyan-400 uppercase tracking-wider">
+                      <CheckCircle2 className="w-4 h-4" /> Your Saved Profile
+                    </div>
                     <button
-                      key={type}
-                      onClick={() => setBodyType(type)}
-                      className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all ${bodyType === type ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50" : "bg-white/5 text-white/60 border border-transparent hover:bg-white/10"}`}
+                      onClick={() => setEditingProfile(true)}
+                      className="flex items-center gap-1 text-[11px] text-white/40 hover:text-white/70 transition-colors"
                     >
-                      {type}
+                      <Pencil className="w-3 h-3" /> Edit
                     </button>
-                  ))}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white/40 uppercase font-bold mb-1">Body Type</span>
+                      <span className="text-sm font-bold text-white">{bodyType}</span>
+                    </div>
+                    <div className="w-px h-8 bg-white/10" />
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white/40 uppercase font-bold mb-1">Skin Tone</span>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-5 h-5 rounded-full border-2 border-white/20"
+                          style={{ backgroundColor: skinTones.find(s => s.name === skinTone)?.color }}
+                        />
+                        <span className="text-sm font-bold text-white">{skinTone}</span>
+                      </div>
+                    </div>
+                    <AnimatePresence>
+                      {justSaved && (
+                        <motion.span
+                          initial={{ opacity: 0, x: 6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="ml-auto text-xs text-green-400 font-bold"
+                        >
+                          ✓ Saved!
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4" />
+                    {profileSaved ? "Edit Your Profile" : "Set Up Your Profile Once"}
+                  </div>
+                  {!profileSaved && (
+                    <p className="text-xs text-white/40">We'll remember your body type and skin tone so you never have to set them again.</p>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 block">Body Type</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {bodyTypes.map(type => (
+                        <button
+                          key={type}
+                          onClick={() => handleBodyTypeChange(type)}
+                          className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all ${bodyType === type ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50" : "bg-white/5 text-white/60 border border-transparent hover:bg-white/10"}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 block">Skin Tone</label>
+                    <div className="flex justify-between">
+                      {skinTones.map(tone => (
+                        <button
+                          key={tone.name}
+                          onClick={() => handleSkinToneChange(tone.name)}
+                          className={`w-8 h-8 rounded-full border-2 transition-transform ${skinTone === tone.name ? "border-cyan-400 scale-110" : "border-transparent hover:scale-105"}`}
+                          style={{ backgroundColor: tone.color }}
+                          title={tone.name}
+                        />
+                      ))}
+                    </div>
+                    <div className="text-center text-xs text-white/30 mt-1">{skinTone}</div>
+                  </div>
+
+                  <button
+                    onClick={() => saveProfile(bodyType, skinTone)}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                    style={{ background: "linear-gradient(135deg, #7C3AED, #06B6D4)" }}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Save My Profile
+                  </button>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-3 block">Occasion</label>
@@ -144,21 +249,6 @@ export function AIDesigner() {
                   </Slider.Track>
                   <Slider.Thumb className="block w-5 h-5 bg-white shadow-[0_2px_10px] shadow-black/50 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
                 </Slider.Root>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-3 block">Skin Tone (For Color Matching)</label>
-                <div className="flex justify-between">
-                  {skinTones.map(tone => (
-                    <button
-                      key={tone.name}
-                      onClick={() => setSkinTone(tone.name)}
-                      className={`w-8 h-8 rounded-full border-2 transition-transform ${skinTone === tone.name ? "border-cyan-400 scale-110" : "border-transparent hover:scale-105"}`}
-                      style={{ backgroundColor: tone.color }}
-                      title={tone.name}
-                    />
-                  ))}
-                </div>
               </div>
 
               <button 
