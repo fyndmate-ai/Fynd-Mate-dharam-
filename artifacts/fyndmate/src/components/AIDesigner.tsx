@@ -5,7 +5,6 @@ import { Upload, Camera, Sparkles, Loader2, Heart, Share2, ShoppingBag } from "l
 import * as Slider from "@radix-ui/react-slider";
 import { useSuggestOutfits } from "@workspace/api-client-react";
 import { formatINR } from "@/lib/utils";
-import { VoiceStylist } from "./VoiceStylist";
 
 export function AIDesigner() {
   const [image, setImage] = useState<string | null>(null);
@@ -54,13 +53,6 @@ export function AIDesigner() {
     { name: "Brown", color: "#835234" },
     { name: "Dark", color: "#5C3A21" }
   ];
-
-  const voiceContext = {
-    body_type: bodyType.toLowerCase(),
-    occasion: occasion.toLowerCase(),
-    budget: budget[0],
-    skin_tone: skinTone.toLowerCase(),
-  };
 
   return (
     <section id="designer" className="py-24 relative bg-[#0a0a0f] border-t border-white/5">
@@ -281,7 +273,6 @@ export function AIDesigner() {
         </div>
       </div>
 
-      <VoiceStylist context={voiceContext} />
     </section>
   );
 }

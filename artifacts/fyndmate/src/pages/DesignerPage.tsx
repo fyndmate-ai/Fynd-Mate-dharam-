@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { useLocation } from "wouter";
 import { AIDesigner } from "../components/AIDesigner";
+import { AanyaChat } from "../components/AanyaChat";
 
 export function DesignerPage() {
   const [, navigate] = useLocation();
@@ -54,6 +55,8 @@ export function DesignerPage() {
         className="relative z-10"
       >
         <AIDesigner />
+        <div className="border-t border-white/5" />
+        <AanyaChat />
       </motion.main>
     </div>
   );
