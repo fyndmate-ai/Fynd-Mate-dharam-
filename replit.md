@@ -91,6 +91,39 @@ Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used b
 
 Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
 
+## FyndMate Application
+
+### Project: AI-powered smart shopping & virtual styling for Indian market
+
+**Frontend** (`artifacts/fyndmate`) — React + Vite, TypeScript, Tailwind CSS
+- Design: dark luxury theme, #050508 background, purple (#7C3AED) + cyan (#06B6D4) gradients, glassmorphism
+- Routing: Wouter — `/` (home), `/finder` (AI Product Finder), `/designer` (AI Fashion Designer)
+- State: TanStack Query mutations via `@workspace/api-client-react` hooks
+- localStorage: `fm_body_type`, `fm_skin_tone` for persistent user profile; `fyndmate_intro` for intro animation
+
+**Backend** (`artifacts/api-server`) — Express 5, TypeScript, Groq AI (via OpenAI SDK)
+- Groq model: `llama-3.3-70b-versatile`, baseURL: `https://api.groq.com/openai/v1`
+- Routes:
+  - `GET /api/healthz` — health check
+  - `POST /api/finder/search` — fetches real Amazon products via RapidAPI, then Groq picks best, returns price comparison across Amazon/Flipkart/Myntra
+  - `POST /api/finder/gift-finder` — AI gift recommendations for Indian market
+  - `POST /api/designer/suggest-outfits` — Groq-generated outfit suggestions with Unsplash images
+  - `POST /api/designer/festival-outfits` — Festival-specific outfit suggestions
+  - `POST /api/designer/voice-chat` — Aanya AI fashion stylist (Groq, ≤3 sentences)
+  - `POST /api/designer/try-on` — Virtual try-on endpoint (HuggingFace fallback)
+  - `POST /api/products/compare` — Real-time price comparison Amazon/Flipkart/Myntra
+
+**Key API Keys**:
+- `GROQ_API_KEY` — Groq AI for product analysis, outfit generation, Aanya chat
+- `RAPIDAPI_KEY` — RapidAPI Amazon data (real product prices & listings)
+- `HUGGINGFACE_API_KEY` — HuggingFace review analysis
+
+**Key Features**:
+1. AI Product Finder — describe product in natural language, AI fetches real Amazon listings, picks best within budget, detects fake reviews, compares prices
+2. AI Fashion Designer (Aanya) — body type + skin tone profile (persisted), outfit generation with real Unsplash images, voice chat with Aanya stylist
+3. Gift Genius — recipient + interests → AI gift recommendations
+4. Price Intelligence — Amazon vs Flipkart vs Myntra with "BEST DEAL" badge and savings shown
+
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.

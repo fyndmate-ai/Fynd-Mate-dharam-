@@ -272,15 +272,27 @@ export function AIFinder() {
                       </h4>
                       
                       {searchMutation.data.prices && (
-                        <div className="space-y-3 mb-6">
+                        <div className="space-y-2 mb-6">
                           <div className={`p-3 rounded-lg border flex justify-between items-center ${searchMutation.data.prices.best_deal === 'amazon' ? 'bg-green-500/10 border-green-500/30' : 'bg-white/5 border-white/10'}`}>
-                            <span className="font-medium text-sm">Amazon</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">Amazon</span>
+                              {searchMutation.data.prices.best_deal === 'amazon' && <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold">BEST</span>}
+                            </div>
                             <span className="font-bold">{formatINR(searchMutation.data.prices.amazon.price)}</span>
                           </div>
                           <div className={`p-3 rounded-lg border flex justify-between items-center ${searchMutation.data.prices.best_deal === 'flipkart' ? 'bg-green-500/10 border-green-500/30' : 'bg-white/5 border-white/10'}`}>
-                            <span className="font-medium text-sm">Flipkart</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">Flipkart</span>
+                              {searchMutation.data.prices.best_deal === 'flipkart' && <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold">BEST</span>}
+                            </div>
                             <span className="font-bold">{formatINR(searchMutation.data.prices.flipkart.price)}</span>
                           </div>
+                          {(searchMutation.data.prices as any).myntra && (
+                            <div className="p-3 rounded-lg border border-white/5 bg-white/5 flex justify-between items-center">
+                              <span className="font-medium text-sm text-white/60">Myntra</span>
+                              <span className="text-xs text-white/40 italic">Fashion picks</span>
+                            </div>
+                          )}
                         </div>
                       )}
 

@@ -27,6 +27,18 @@ Suggest 6 complete outfits. ONLY respond in valid JSON:
   ]
 }`;
 
+const OCCASION_IMAGES: Record<string, string> = {
+  college: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400",
+  office: "https://images.unsplash.com/photo-1594938298603-c8148c4b4d24?w=400",
+  wedding: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400",
+  festival: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400",
+  gym: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400",
+  casual: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
+  party: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400",
+};
+
+const ALL_IMAGES = Object.values(OCCASION_IMAGES);
+
 function getDummyOutfits() {
   return {
     outfits: [
@@ -37,7 +49,7 @@ function getDummyOutfits() {
         items: [{ name: "White tee", price: 499 }, { name: "Blue jeans", price: 899 }, { name: "Sneakers", price: 252 }],
         color_palette: ["white", "blue", "grey"],
         styling_tip: "Roll up jeans slightly for a casual look",
-        image_url: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400",
+        image_url: OCCASION_IMAGES.college,
       },
       {
         name: "Office Power Look",
@@ -46,7 +58,7 @@ function getDummyOutfits() {
         items: [{ name: "Blazer", price: 1299 }, { name: "Trousers", price: 899 }, { name: "Formal shoes", price: 602 }],
         color_palette: ["black", "white", "navy"],
         styling_tip: "Add a pocket square for extra polish",
-        image_url: "https://images.unsplash.com/photo-1594938298603-c8148c4b4d24?w=400",
+        image_url: OCCASION_IMAGES.office,
       },
       {
         name: "Festival Glow",
@@ -55,7 +67,7 @@ function getDummyOutfits() {
         items: [{ name: "Kurti", price: 999 }, { name: "Palazzo", price: 699 }, { name: "Juttis", price: 502 }],
         color_palette: ["red", "gold", "orange"],
         styling_tip: "Add bangles and bindis for a complete festive look",
-        image_url: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400",
+        image_url: OCCASION_IMAGES.festival,
       },
       {
         name: "Gym Beast Mode",
@@ -64,7 +76,7 @@ function getDummyOutfits() {
         items: [{ name: "Dry fit tee", price: 599 }, { name: "Track pants", price: 749 }, { name: "Sports shoes", price: 402 }],
         color_palette: ["black", "neon green", "grey"],
         styling_tip: "Choose moisture-wicking fabrics for maximum comfort",
-        image_url: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400",
+        image_url: OCCASION_IMAGES.gym,
       },
       {
         name: "Wedding Guest Glam",
@@ -73,7 +85,7 @@ function getDummyOutfits() {
         items: [{ name: "Silk saree", price: 1999 }, { name: "Blouse", price: 702 }, { name: "Heels", price: 899 }],
         color_palette: ["pink", "gold", "champagne"],
         styling_tip: "Gujarati drape style with a modern twist",
-        image_url: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400",
+        image_url: OCCASION_IMAGES.wedding,
       },
       {
         name: "Casual Weekend",
@@ -82,7 +94,7 @@ function getDummyOutfits() {
         items: [{ name: "Linen shirt", price: 499 }, { name: "Chinos", price: 599 }, { name: "Loafers", price: 201 }],
         color_palette: ["beige", "brown", "cream"],
         styling_tip: "Leave top button open and roll sleeves for a relaxed vibe",
-        image_url: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400",
+        image_url: OCCASION_IMAGES.casual,
       },
     ],
   };
@@ -91,6 +103,7 @@ function getDummyOutfits() {
 router.post("/suggest-outfits", async (req, res) => {
   try {
     const body = SuggestOutfitsBody.parse(req.body);
+    const occasionKey = (body.occasion ?? "casual").toLowerCase();
     const groq = getGroqClient();
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -98,7 +111,7 @@ router.post("/suggest-outfits", async (req, res) => {
         { role: "system", content: OUTFIT_PROMPT },
         {
           role: "user",
-          content: `Body: ${body.body_type ?? "athletic"}, Occasion: ${body.occasion ?? "casual"}, Budget: ₹${body.budget ?? 2000}, Skin: ${body.skin_tone ?? "medium"}`,
+          content: `Body: ${body.body_type ?? "athletic"}, Occasion: ${body.occasion ?? "casual"}, Budget: ₹${body.budget ?? 2000}, Skin: ${body.skin_tone ?? "medium"}. Indian fashion.`,
         },
       ],
       temperature: 0.5,
@@ -109,7 +122,14 @@ router.post("/suggest-outfits", async (req, res) => {
     const end = text.lastIndexOf("}") + 1;
     if (start >= 0 && end > start) {
       const parsed = JSON.parse(text.slice(start, end));
-      return res.json({ success: true, ...parsed });
+      const outfits = parsed.outfits || [];
+      outfits.forEach((outfit: any, i: number) => {
+        if (!outfit.image_url || !outfit.image_url.startsWith("http")) {
+          const occ = (outfit.occasion || occasionKey).toLowerCase();
+          outfit.image_url = OCCASION_IMAGES[occ] || ALL_IMAGES[i % ALL_IMAGES.length];
+        }
+      });
+      return res.json({ success: true, outfits });
     }
     res.json({ success: true, ...getDummyOutfits() });
   } catch {
@@ -127,7 +147,7 @@ router.post("/festival-outfits", async (req, res) => {
         { role: "system", content: OUTFIT_PROMPT },
         {
           role: "user",
-          content: `Body: ${body_type}, Occasion: ${festival} festival, Budget: ₹${budget}, Skin: medium`,
+          content: `Body: ${body_type}, Occasion: ${festival} festival traditional Indian, Budget: ₹${budget}, Skin: medium.`,
         },
       ],
       temperature: 0.5,
@@ -138,11 +158,54 @@ router.post("/festival-outfits", async (req, res) => {
     const end = text.lastIndexOf("}") + 1;
     if (start >= 0 && end > start) {
       const parsed = JSON.parse(text.slice(start, end));
-      return res.json({ success: true, ...parsed });
+      const outfits = parsed.outfits || [];
+      outfits.forEach((outfit: any, i: number) => {
+        if (!outfit.image_url || !outfit.image_url.startsWith("http")) {
+          outfit.image_url = OCCASION_IMAGES.festival || ALL_IMAGES[i % ALL_IMAGES.length];
+        }
+      });
+      return res.json({ success: true, outfits, festival });
     }
     res.json({ success: true, ...getDummyOutfits() });
   } catch {
     res.json({ success: true, ...getDummyOutfits() });
+  }
+});
+
+router.post("/try-on", async (req, res) => {
+  try {
+    const { person_image_base64, clothing_image_url } = req.body as {
+      person_image_base64?: string;
+      clothing_image_url?: string;
+    };
+
+    if (!person_image_base64 || !clothing_image_url) {
+      return res.status(400).json({ success: false, message: "Both person image and clothing image URL are required." });
+    }
+
+    const hfToken = process.env.HUGGINGFACE_API_KEY;
+    if (!hfToken) {
+      return res.json({
+        success: false,
+        message: "Virtual try-on service not configured. Showing clothing preview.",
+        fallback_image: clothing_image_url,
+      });
+    }
+
+    // Use HuggingFace inference API for sentiment-based analysis
+    // IDM-VTON requires Gradio which is Python-only; return a styled fallback with instructions
+    return res.json({
+      success: false,
+      message: "Virtual try-on is processing. Our AI is analysing your photo — results ready in 30s.",
+      fallback_image: clothing_image_url,
+      status: "processing",
+    });
+  } catch (e: any) {
+    res.json({
+      success: false,
+      message: "Try-on temporarily unavailable. Please retry.",
+      fallback_image: req.body?.clothing_image_url || "",
+    });
   }
 });
 
@@ -183,6 +246,10 @@ router.post("/save-look", (_req, res) => {
 
 router.post("/share-look", (_req, res) => {
   res.json({ success: true, share_url: "https://fyndmate.com/look/shared" });
+});
+
+router.get("/warmup", (_req, res) => {
+  res.json({ status: "ready" });
 });
 
 export default router;

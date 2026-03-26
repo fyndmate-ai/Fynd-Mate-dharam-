@@ -303,9 +303,8 @@ export function AIDesigner() {
                         className="glass-cyan group hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col"
                       >
                         <div className="h-64 bg-[#050508] relative overflow-hidden">
-                          {/* using generated image or unsplash if not available, but assuming user provided fashion image in requirements */}
                           <img 
-                            src={`${import.meta.env.BASE_URL}images/indian-fashion-placeholder.png`} 
+                            src={outfit.image_url || "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"} 
                             alt={outfit.name} 
                             className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" 
                           />
@@ -347,9 +346,13 @@ export function AIDesigner() {
 
                           <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/10">
                             <div className="font-black text-lg">{formatINR(outfit.total_price)}</div>
-                            <button className="px-4 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm">
+                            <a 
+                              href={`https://amazon.in/s?k=${encodeURIComponent(outfit.name + " " + (outfit.items[0]?.name || "outfit"))}&tag=fyndmate-21`}
+                              target="_blank" rel="noreferrer"
+                              className="px-4 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm"
+                            >
                               <ShoppingBag className="w-4 h-4" /> Buy Look
-                            </button>
+                            </a>
                           </div>
                         </div>
                       </motion.div>

@@ -1,0 +1,528 @@
+Create all missing files for FyndMate backend. The project already has backend/routers/designer.py and backend/routers/finder.py. Now create ALL these files with complete working code:
+
+== CREATE: backend/models/__init__.py ==
+(empty file)
+
+== CREATE: backend/models/schemas.py ==
+from pydantic import BaseModel
+from typing import Optional
+
+class SearchRequest(BaseModel):
+    query: str
+    budget: float = 2000
+    use_case: str = "general"
+    platform: str = "all"
+
+class GiftRequest(BaseModel):
+    recipient: str
+    interests: str
+    budget: float = 1500
+
+class OutfitRequest(BaseModel):
+    body_type: str = "athletic"
+    occasion: str = "casual"
+    budget: float = 2000
+    skin_tone: str = "medium"
+    style_preference: str = "casual"
+
+class TryOnRequest(BaseModel):
+    person_image_base64: str
+    clothing_image_url: str
+
+class FestivalRequest(BaseModel):
+    festival: str = "Diwali"
+    budget: float = 2000
+    body_type: str = "athletic"
+
+class PriceRequest(BaseModel):
+    product_name: str
+    budget: float = 2000
+
+== CREATE: backend/services/__init__.py ==
+(empty file)
+
+== CREATE: backend/services/groq_service.py ==
+import os
+import json
+from groq import Groq
+
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+PRODUCT_PROMPT = """You are FyndMate's expert AI shopping assistant for Indian consumers.
+You will receive REAL products fetched from Amazon India.
+Your job is to analyze them and pick the BEST one for the user's need.
+Always stay within budget. Always respond ONLY in this exact JSON format, no extra text:
+{
+  "product_name": "string",
+  "brand": "string",
+  "estimated_price": number,
+  "match_score": number,
+  "pros": ["string", "string", "string"],
+  "cons": ["string", "string"],
+  "explanation": "string",
+  "return_risk": "low",
+  "return_risk_reason": "string",
+  "fake_review_warning": false,
+  "fake_review_reason": "string",
+  "alternatives": [
+    {"name": "string", "price": number, "reason": "string"},
+    {"name": "string", "price": number, "reason": "string"},
+    {"name": "string", "price": number, "reason": "string"}
+  ]
+}"""
+
+OUTFIT_PROMPT = """You are FyndMate's AI fashion stylist for Indian fashion.
+Suggest 6 complete outfits. ONLY respond in valid JSON:
+{
+  "outfits": [
+    {
+      "name": "string",
+      "occasion": "string",
+      "total_price": number,
+      "items": [{"name": "string", "price": number}],
+      "color_palette": ["string"],
+      "styling_tip": "string",
+      "image_url": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"
+    }
+  ]
+}"""
+
+async def search_product(query: str, budget: float, use_case: str, real_products: list = None):
+    try:
+        if real_products and len(real_products) > 0:
+            products_text = "\n".join([
+                f"- {p.get('name', '')} | Price: Rs{p.get('price', 'N/A')} | Rating: {p.get('rating', 'N/A')}"
+                for p in real_products[:5]
+            ])
+            user_message = f"User need: {query}\nBudget: Rs{budget}\nUse case: {use_case}\n\nReal products on Amazon India:\n{products_text}\n\nPick the best within budget Rs{budget}."
+        else:
+            user_message = f"Find best product for: {query}. Budget: Rs{budget}. Use case: {use_case}."
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": PRODUCT_PROMPT},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.2,
+            max_tokens=1200
+        )
+        text = response.choices[0].message.content
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start == -1:
+            return get_dummy_result(query, budget)
+        return json.loads(text[start:end])
+    except Exception as e:
+        print(f"Groq error: {e}")
+        return get_dummy_result(query, budget)
+
+async def get_outfits(body_type: str, occasion: str, budget: float, skin_tone: str):
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": OUTFIT_PROMPT},
+                {"role": "user", "content": f"Body: {body_type}, Occasion: {occasion}, Budget: Rs{budget}, Skin: {skin_tone}. Indian fashion."}
+            ],
+            temperature=0.5,
+            max_tokens=2000
+        )
+        text = response.choices[0].message.content
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start == -1:
+            return get_dummy_outfits()
+        return json.loads(text[start:end])
+    except Exception as e:
+        print(f"Outfit error: {e}")
+        return get_dummy_outfits()
+
+async def get_gifts(recipient: str, interests: str, budget: float):
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "Gift expert for Indian market. Return JSON with gifts array with name, price, reason, where_to_buy fields."},
+                {"role": "user", "content": f"Gifts for {recipient} who likes {interests}. Budget Rs{budget}."}
+            ],
+            temperature=0.5,
+            max_tokens=800
+        )
+        text = response.choices[0].message.content
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start == -1:
+            return {"gifts": [{"name": "Bluetooth Speaker", "price": budget * 0.8, "reason": "Great for music lovers", "where_to_buy": "Amazon"}]}
+        return json.loads(text[start:end])
+    except:
+        return {"gifts": [{"name": "Bluetooth Speaker", "price": budget * 0.8, "reason": "Perfect gift", "where_to_buy": "Amazon"}]}
+
+def get_dummy_result(query, budget):
+    return {
+        "product_name": "Sony WF-1000XM5 Wireless Earbuds",
+        "brand": "Sony",
+        "estimated_price": min(1899, budget),
+        "match_score": 94,
+        "pros": ["Best noise cancellation", "30hr battery", "Clear calls", "Comfortable fit"],
+        "cons": ["Bulky case", "Premium price"],
+        "explanation": f"Best match for '{query}' within Rs{budget}. Highest rated in category.",
+        "return_risk": "low",
+        "return_risk_reason": "Only 3.2% return rate",
+        "fake_review_warning": False,
+        "fake_review_reason": "Reviews appear genuine",
+        "alternatives": [
+            {"name": "boAt Rockerz 255 Pro+", "price": 999, "reason": "Best budget option"},
+            {"name": "JBL Tune 230NC TWS", "price": 1599, "reason": "Great bass"},
+            {"name": "Noise Buds VS104", "price": 799, "reason": "Most affordable"}
+        ]
+    }
+
+def get_dummy_outfits():
+    return {"outfits": [
+        {"name": "Urban College Vibe", "occasion": "College", "total_price": 1650, "items": [{"name": "White oversized tee", "price": 499}, {"name": "Blue jeans", "price": 899}], "color_palette": ["white", "blue"], "styling_tip": "Roll up jeans slightly", "image_url": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"},
+        {"name": "Office Power Look", "occasion": "Office", "total_price": 2800, "items": [{"name": "Formal blazer", "price": 1299}, {"name": "Trousers", "price": 899}], "color_palette": ["black", "white"], "styling_tip": "Add pocket square", "image_url": "https://images.unsplash.com/photo-1594938298603-c8148c4b4d24?w=400"},
+        {"name": "Festival Glow", "occasion": "Festival", "total_price": 2200, "items": [{"name": "Embroidered kurti", "price": 999}, {"name": "Palazzo", "price": 699}], "color_palette": ["red", "gold"], "styling_tip": "Add bangles", "image_url": "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400"},
+        {"name": "Gym Beast Mode", "occasion": "Gym", "total_price": 1750, "items": [{"name": "Dry fit tee", "price": 599}, {"name": "Track pants", "price": 749}], "color_palette": ["black", "neon"], "styling_tip": "Moisture-wicking fabric", "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400"},
+        {"name": "Wedding Glam", "occasion": "Wedding", "total_price": 3600, "items": [{"name": "Silk saree", "price": 1999}, {"name": "Blouse", "price": 799}], "color_palette": ["pink", "gold"], "styling_tip": "Gujarati drape style", "image_url": "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400"},
+        {"name": "Casual Weekend", "occasion": "Casual", "total_price": 1299, "items": [{"name": "Linen shirt", "price": 499}, {"name": "Chinos", "price": 599}], "color_palette": ["beige", "brown"], "styling_tip": "Leave top button open", "image_url": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"}
+    ]}
+
+== CREATE: backend/services/price_service.py ==
+import httpx
+import os
+
+async def fetch_real_products(query: str, budget: float) -> list:
+    key = os.environ.get("RAPIDAPI_KEY")
+    if not key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            response = await client.get(
+                "https://real-time-amazon-data.p.rapidapi.com/search",
+                params={"query": query, "page": "1", "country": "IN", "sort_by": "RELEVANCE"},
+                headers={"X-RapidAPI-Key": key, "X-RapidAPI-Host": "real-time-amazon-data.p.rapidapi.com"}
+            )
+            if response.status_code != 200:
+                return []
+            data = response.json()
+            products_raw = data.get("data", {}).get("products", [])
+            products = []
+            for p in products_raw[:8]:
+                price_str = str(p.get("product_price", "")).replace("₹", "").replace(",", "").strip()
+                try:
+                    price = float(price_str)
+                    if price <= budget * 1.1:
+                        products.append({
+                            "name": p.get("product_title", "")[:80],
+                            "price": price,
+                            "rating": p.get("product_star_rating", "N/A"),
+                            "reviews": p.get("product_num_ratings", "N/A"),
+                            "url": p.get("product_url", ""),
+                            "asin": p.get("asin", "")
+                        })
+                except:
+                    pass
+            return products
+    except Exception as e:
+        print(f"RapidAPI error: {e}")
+        return []
+
+async def compare_prices(product_name: str, budget: float) -> dict:
+    key = os.environ.get("RAPIDAPI_KEY")
+    amazon_price = None
+    amazon_url = f"https://amazon.in/s?k={product_name.replace(' ', '+')}"
+    amazon_affiliate = f"{amazon_url}&tag=fyndmate-21"
+
+    if key:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    "https://real-time-amazon-data.p.rapidapi.com/search",
+                    params={"query": product_name, "country": "IN", "page": "1"},
+                    headers={"X-RapidAPI-Key": key, "X-RapidAPI-Host": "real-time-amazon-data.p.rapidapi.com"}
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    products = data.get("data", {}).get("products", [])
+                    if products:
+                        p = products[0]
+                        price_str = str(p.get("product_price", "")).replace("₹", "").replace(",", "").strip()
+                        try:
+                            amazon_price = float(price_str)
+                            asin = p.get("asin", "")
+                            if asin:
+                                amazon_url = f"https://amazon.in/dp/{asin}"
+                                amazon_affiliate = f"{amazon_url}?tag=fyndmate-21"
+                        except:
+                            pass
+        except Exception as e:
+            print(f"Price error: {e}")
+
+    if not amazon_price:
+        amazon_price = budget * 0.92
+
+    flipkart_price = round(amazon_price * 1.04, 0)
+    flipkart_url = f"https://flipkart.com/search?q={product_name.replace(' ', '%20')}"
+    myntra_url = f"https://myntra.com/search?q={product_name.replace(' ', '-').lower()}"
+    best = "amazon" if amazon_price <= flipkart_price else "flipkart"
+
+    return {
+        "amazon": {"price": amazon_price, "url": amazon_url, "affiliate_url": amazon_affiliate, "delivery": "2-3 days"},
+        "flipkart": {"price": flipkart_price, "url": flipkart_url, "affiliate_url": flipkart_url, "delivery": "3-5 days"},
+        "myntra": {"url": myntra_url, "note": "Best for fashion"},
+        "best_deal": best,
+        "savings": round(abs(amazon_price - flipkart_price), 0)
+    }
+
+== CREATE: backend/services/review_service.py ==
+import httpx
+import os
+
+async def analyze_reviews(reviews: list):
+    token = os.environ.get("HUGGINGFACE_API_KEY")
+    if not token or not reviews:
+        return {"trust_score": 82, "fake_percentage": 18, "summary": "Reviews appear mostly genuine"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"inputs": reviews[:3]}
+            )
+            results = response.json()
+            if isinstance(results, list):
+                fake_count = sum(1 for r in results if r and isinstance(r, list) and r[0].get("label") == "LABEL_2")
+                fake_pct = int((fake_count / len(results)) * 100)
+                return {
+                    "trust_score": 100 - fake_pct,
+                    "fake_percentage": fake_pct,
+                    "summary": "Suspicious patterns detected" if fake_pct > 40 else "Reviews appear genuine"
+                }
+    except Exception as e:
+        print(f"Review error: {e}")
+    return {"trust_score": 80, "fake_percentage": 20, "summary": "Analysis complete"}
+
+== CREATE: backend/services/tryon_service.py ==
+import base64
+import tempfile
+import os
+import httpx
+import asyncio
+
+async def run_virtual_tryon(person_image_base64: str, clothing_image_url: str):
+    hf_token = os.environ.get("HUGGINGFACE_API_KEY")
+    if not hf_token:
+        return {"success": False, "message": "HuggingFace key missing", "fallback_image": clothing_image_url}
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _run_tryon_sync, person_image_base64, clothing_image_url, hf_token)
+        return result
+    except Exception as e:
+        return {"success": False, "message": "Try-on busy. Retry in 30 seconds.", "fallback_image": clothing_image_url}
+
+def _run_tryon_sync(person_image_base64, clothing_image_url, hf_token):
+    try:
+        from gradio_client import Client, handle_file
+        client = Client("yisol/IDM-VTON", hf_token=hf_token)
+        person_bytes = base64.b64decode(person_image_base64)
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(person_bytes)
+            person_path = f.name
+        clothing_data = httpx.get(clothing_image_url, timeout=15.0).content
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(clothing_data)
+            clothing_path = f.name
+        result = client.predict(
+            dict({"background": handle_file(person_path), "layers": [], "composite": None}),
+            dict({"background": handle_file(clothing_path), "layers": [], "composite": None}),
+            "FyndMate virtual try-on", True, True, 20, 20,
+            api_name="/tryon"
+        )
+        with open(result[0], "rb") as img:
+            result_b64 = base64.b64encode(img.read()).decode()
+        os.unlink(person_path)
+        os.unlink(clothing_path)
+        return {"success": True, "result_image": result_b64}
+    except Exception as e:
+        return {"success": False, "message": str(e)[:100], "fallback_image": clothing_image_url}
+
+== CREATE: backend/routers/__init__.py ==
+(empty file)
+
+== CREATE: backend/routers/products.py ==
+from fastapi import APIRouter
+from models.schemas import PriceRequest
+from services.price_service import compare_prices
+
+router = APIRouter()
+
+@router.post("/compare")
+async def compare(req: PriceRequest):
+    result = await compare_prices(req.product_name, req.budget)
+    return {"success": True, **result}
+
+== UPDATE: backend/routers/finder.py ==
+Replace entire content with:
+
+from fastapi import APIRouter
+from models.schemas import SearchRequest, GiftRequest
+from services.groq_service import search_product, get_gifts
+from services.price_service import compare_prices, fetch_real_products
+import os
+
+router = APIRouter()
+
+@router.post("/search")
+async def search(req: SearchRequest):
+    try:
+        real_products = await fetch_real_products(req.query, req.budget)
+        result = await search_product(req.query, req.budget, req.use_case, real_products)
+        product_name = result.get("product_name", req.query)
+        prices = await compare_prices(product_name, req.budget)
+        result["prices"] = prices
+        result["affiliate_links"] = {
+            "amazon": prices.get("amazon", {}).get("affiliate_url", f"https://amazon.in/s?k={product_name}&tag=fyndmate-21"),
+            "flipkart": prices.get("flipkart", {}).get("affiliate_url", f"https://flipkart.com/search?q={product_name}"),
+            "myntra": prices.get("myntra", {}).get("url", f"https://myntra.com/search?q={product_name}")
+        }
+        return {"success": True, "main_product": result, "prices": prices, "real_products_found": len(real_products)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.post("/gift-finder")
+async def gift_finder(req: GiftRequest):
+    try:
+        result = await get_gifts(req.recipient, req.interests, req.budget)
+        return {"success": True, **result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+== UPDATE: backend/routers/designer.py ==
+Replace entire content with:
+
+from fastapi import APIRouter
+from models.schemas import OutfitRequest, TryOnRequest, FestivalRequest
+from services.groq_service import get_outfits
+from services.tryon_service import run_virtual_tryon
+import httpx
+import os
+
+router = APIRouter()
+
+OUTFIT_IMAGES = {
+    "college": ["https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400"],
+    "office": ["https://images.unsplash.com/photo-1594938298603-c8148c4b4d24?w=400"],
+    "wedding": ["https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400"],
+    "festival": ["https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400"],
+    "gym": ["https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400"],
+    "casual": ["https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400"],
+    "party": ["https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400"],
+}
+
+@router.post("/suggest-outfits")
+async def suggest_outfits(req: OutfitRequest):
+    try:
+        result = await get_outfits(req.body_type, req.occasion, req.budget, req.skin_tone)
+        occasion_key = req.occasion.lower()
+        images = OUTFIT_IMAGES.get(occasion_key, OUTFIT_IMAGES["casual"])
+        outfits = result.get("outfits", [])
+        for i, outfit in enumerate(outfits):
+            if not outfit.get("image_url"):
+                outfit["image_url"] = images[i % len(images)]
+        return {"success": True, "outfits": outfits}
+    except Exception as e:
+        return {"success": False, "error": str(e), "outfits": []}
+
+@router.post("/try-on")
+async def try_on(req: TryOnRequest):
+    try:
+        result = await run_virtual_tryon(req.person_image_base64, req.clothing_image_url)
+        return result
+    except Exception as e:
+        return {"success": False, "message": "Try-on failed. Please retry.", "fallback_image": req.clothing_image_url}
+
+@router.post("/festival-outfits")
+async def festival_outfits(req: FestivalRequest):
+    try:
+        result = await get_outfits(req.body_type, f"{req.festival} festival traditional Indian", req.budget, "medium")
+        outfits = result.get("outfits", [])
+        images = OUTFIT_IMAGES.get("festival", OUTFIT_IMAGES["casual"])
+        for i, outfit in enumerate(outfits):
+            outfit["image_url"] = images[i % len(images)]
+        return {"success": True, "outfits": outfits, "festival": req.festival}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/warmup")
+async def warmup():
+    return {"status": "ready"}
+
+== CREATE: backend/main.py ==
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import pathlib
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(__file__))
+
+from routers import finder, designer, products
+
+app = FastAPI(title="FyndMate API", version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+app.include_router(finder.router, prefix="/api/finder", tags=["AI Finder"])
+app.include_router(designer.router, prefix="/api/designer", tags=["AI Designer"])
+app.include_router(products.router, prefix="/api/products", tags=["Products"])
+
+@app.get("/health")
+async def health():
+    return {"status": "FyndMate backend running", "version": "1.0", "ai": "Groq Llama 3.3"}
+
+frontend_dist = pathlib.Path("../frontend/dist")
+if frontend_dist.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    index = pathlib.Path("../frontend/dist/index.html")
+    if index.exists():
+        return FileResponse(str(index))
+    return {"message": "FyndMate API running. Go to /health to verify."}
+
+== CREATE: backend/requirements.txt ==
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+groq==0.4.1
+httpx==0.25.2
+python-dotenv==1.0.0
+pydantic==2.5.2
+python-multipart==0.0.6
+Pillow==10.1.0
+gradio_client==0.7.3
+
+== UPDATE: .replit file in root ==
+[nix]
+channel = "stable-22_11"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+[run]
+command = "cd backend && pip install -r requirements.txt -q && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+After creating all files run the project. It should show:
+INFO: Uvicorn running on http://0.0.0.0:8000
+
+Then open /health endpoint to verify everything works.
