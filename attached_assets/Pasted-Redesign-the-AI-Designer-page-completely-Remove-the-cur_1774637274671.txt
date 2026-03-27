@@ -1,0 +1,175 @@
+Redesign the AI Designer page completely. Remove the current complex form-based UI with body type selector, occasion chips, budget slider and separate panels. Replace it with a simple WhatsApp-style live chat interface called "Aanya" that feels like talking to a real personal stylist.
+
+== NEW CONCEPT ==
+The user opens AI Designer and sees a simple chat interface.
+They type or speak naturally — "I want a casual shirt under 800 rupees" or "Show me a wedding outfit for slim body type"
+Aanya understands, finds real outfit suggestions, and shows them instantly in the chat with try-on option.
+Everything happens in one screen. Simple. Conversational. No forms.
+
+== COMPLETE NEW UI DESIGN ==
+
+The page has TWO sections side by side:
+
+LEFT SIDE — Chat with Aanya (60% width):
+- Header: Aanya avatar (purple circle with sparkle icon) + "Aanya" name + "AI Fashion Stylist · Powered by Groq" + green live dot
+- Chat message area (scrollable, dark background)
+- Aanya's welcome message already shown:
+  "Hi! I'm Aanya, your personal AI fashion stylist! ✨
+   Tell me what you're looking for — any style, occasion, or budget.
+   I'll find perfect outfits for you instantly!
+   
+   Try saying:
+   • Show me casual outfits under ₹1000
+   • I want a wedding look for slim body type
+   • Office wear for women under ₹2000
+   • Festival outfit with gold and red colors"
+
+- Quick suggestion chips below welcome message:
+  "Casual under ₹1000" | "Wedding look" | "Office wear" | "Festival outfit" | "Gym wear" | "College style"
+
+- Input area at bottom:
+  * Text input with placeholder "Ask Aanya anything about fashion..."
+  * Microphone button (for voice input using Web Speech API)
+  * Send button (cyan gradient)
+
+RIGHT SIDE — Live Preview (40% width):
+- Top: Photo upload zone — small, compact
+  * Shows uploaded photo preview
+  * If no photo: shows a silhouette avatar placeholder
+  * "Upload your photo for virtual try-on" text
+- Below photo: The outfit that Aanya found appears here as try-on result
+- Shows outfit image on the uploaded photo using try-on API
+- If no photo uploaded: shows outfit on a standard model image
+
+== CHAT MESSAGE TYPES ==
+
+When user sends a message Aanya responds with:
+
+1. TEXT MESSAGE — Aanya's friendly response text
+2. OUTFIT CARDS — 3-4 outfit cards shown inside the chat bubble
+   Each card shows:
+   - Outfit image (square, rounded)
+   - Outfit name
+   - Total price in ₹
+   - "Try This" button (cyan, small)
+   - "Buy Now" button (purple, small)
+
+3. When user clicks "Try This":
+   - If photo uploaded: calls try-on API, shows result in RIGHT SIDE preview
+   - If no photo: shows message "Upload your photo on the right to try this on!"
+   - Loading animation while try-on processes
+
+== HOW AANYA UNDERSTANDS MESSAGES ==
+
+When user sends any message — parse it for:
+- Budget: look for numbers with ₹ or "under" or "below" or "rupees"
+- Occasion: college/office/wedding/party/festival/gym/casual
+- Body type: slim/athletic/curvy/plus
+- Gender signals: "for women" / "for men" / "for girls" / "for boys"
+- Color preferences: any color mentioned
+- Item type: shirt/kurti/jeans/saree/dress/suit/jacket etc
+
+Then call the backend API: POST /api/designer/suggest-outfits
+with extracted: body_type, occasion, budget, skin_tone="medium"
+
+Show results as outfit cards inside the chat.
+
+== VOICE INPUT ==
+Add microphone button next to text input.
+Use browser's Web Speech API (SpeechRecognition).
+When user clicks mic:
+- Button turns red and pulses
+- Listens for speech
+- Converts to text
+- Auto-fills the input
+- Auto-sends after 1.5 seconds of silence
+Works for both Hindi and English naturally.
+
+== CHAT MESSAGE STYLING ==
+
+User messages: right aligned, purple background, white text, rounded corners
+Aanya messages: left aligned, dark card background, white text, Aanya avatar shown
+
+Outfit cards inside Aanya messages:
+- Horizontal scroll row of cards
+- Each card: 120px wide, outfit image top, name + price below, Try This + Buy buttons
+- Cyan border on hover
+- "Try This" button calls try-on API
+
+Loading state:
+- Three bouncing dots animation while Aanya is "thinking"
+- Text: "Aanya is finding outfits for you..."
+
+== SAMPLE CONVERSATION FLOW ==
+
+User: "Show me casual outfits under 1000 rupees"
+
+Aanya: "Perfect! Here are some gorgeous casual looks under ₹1,000 for you! 🌟"
+[Shows 4 outfit cards with images, names, prices, Try This buttons]
+
+User clicks "Try This" on first outfit →
+Right side preview shows try-on result or prompts to upload photo
+
+User: "Can you show something in blue color?"
+
+Aanya: "Love blue! Here are some stunning blue casual outfits under ₹1,000! 💙"
+[Shows 4 new outfit cards filtered for blue]
+
+== BACKEND CHANGES NEEDED ==
+
+Add new endpoint POST /api/designer/chat-style:
+Input: { message: string, user_profile: { body_type, budget_hint, occasion_hint } }
+
+Parse the message using Groq to extract:
+- occasion, budget, body_type, color, item_type
+
+Then call get_outfits() with extracted parameters
+
+Return:
+{
+  "aanya_response": "friendly response text from Aanya",
+  "outfits": [...outfit array...],
+  "extracted": { "occasion": "", "budget": 0, "body_type": "" }
+}
+
+The Groq prompt for parsing + responding:
+System: "You are Aanya, FyndMate's warm friendly Indian fashion stylist AI. 
+Parse the user message and extract: occasion, budget (number in INR), body_type, color_preference, item_type.
+Also write a short friendly response (1-2 lines max, use 1 emoji).
+Respond in JSON:
+{
+  'aanya_response': 'your friendly reply',
+  'occasion': 'college/office/wedding/festival/gym/casual/party',
+  'budget': number or 2000 if not specified,
+  'body_type': 'slim/athletic/curvy/plus or athletic if not specified',
+  'color': 'color or null',
+  'item_type': 'specific item or null'
+}"
+
+== OVERALL DESIGN STYLE ==
+- Dark background #0A0A0F
+- Chat area: slightly lighter dark #111118
+- Aanya messages: #1A1A2E background
+- User messages: purple gradient #6D28D9 to #7C3AED
+- Accent: cyan #06B6D4
+- Font: Inter
+- Rounded corners everywhere
+- Feels like WhatsApp but premium dark theme
+- Mobile responsive — on mobile chat takes full width, preview slides up from bottom
+
+== KEEP FROM CURRENT UI ==
+- Keep the Aanya branding and name (already built - Image 2 shows it)
+- Keep the quick suggestion chips
+- Keep the FyndMate navbar with Back to Home button
+- Keep the photo upload functionality but make it smaller and on the right side
+
+== REMOVE FROM CURRENT UI ==
+- Remove the complex body type form
+- Remove the occasion chips as a separate section
+- Remove the budget slider as a separate section
+- Remove the "Style Me with AI" big button
+- Remove the split panel complex layout
+
+Replace everything with the simple conversational Aanya chat interface described above.
+
+After building show me the complete new interface.

@@ -252,4 +252,113 @@ router.get("/warmup", (_req, res) => {
   res.json({ status: "ready" });
 });
 
+router.post("/chat-style", async (req, res) => {
+  try {
+    const { message, user_profile } = req.body as {
+      message: string;
+      user_profile?: { body_type?: string; budget_hint?: number; occasion_hint?: string };
+    };
+    if (!message) return res.status(400).json({ success: false, error: "No message" });
+
+    const groq = getGroqClient();
+
+    const parseResponse = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content: `You are Aanya, FyndMate's warm friendly Indian fashion stylist AI.
+Parse the user message and extract occasion, budget, body_type, color_preference, item_type.
+Write a short friendly response (1-2 lines max, use 1 emoji).
+Respond ONLY in valid JSON:
+{
+  "aanya_response": "your friendly reply",
+  "occasion": "college/office/wedding/festival/gym/casual/party",
+  "budget": number,
+  "body_type": "slim/athletic/curvy/plus",
+  "color": "color name or null",
+  "item_type": "item name or null"
+}`,
+        },
+        { role: "user", content: message },
+      ],
+      temperature: 0.4,
+      max_tokens: 300,
+    });
+
+    const parseText = parseResponse.choices[0].message.content || "";
+    const ps = parseText.indexOf("{");
+    const pe = parseText.lastIndexOf("}") + 1;
+
+    let extracted = {
+      aanya_response: "Perfect! Here are some amazing outfits for you! ✨",
+      occasion: user_profile?.occasion_hint || "casual",
+      budget: user_profile?.budget_hint || 2000,
+      body_type: user_profile?.body_type || "athletic",
+      color: null as string | null,
+      item_type: null as string | null,
+    };
+
+    if (ps >= 0 && pe > ps) {
+      try {
+        const p = JSON.parse(parseText.slice(ps, pe));
+        extracted = { ...extracted, ...p };
+        if (!p.budget || p.budget <= 0) extracted.budget = user_profile?.budget_hint || 2000;
+      } catch {}
+    }
+
+    const outfitPrompt = extracted.color
+      ? `${OUTFIT_PROMPT}\nUser wants ${extracted.color} color outfits.`
+      : OUTFIT_PROMPT;
+
+    const outfitResponse = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: outfitPrompt },
+        {
+          role: "user",
+          content: `Body: ${extracted.body_type}, Occasion: ${extracted.occasion}, Budget: ₹${extracted.budget}${extracted.color ? `, Color: ${extracted.color}` : ""}${extracted.item_type ? `, Item: ${extracted.item_type}` : ""}. Indian fashion.`,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 1500,
+    });
+
+    const outfitText = outfitResponse.choices[0].message.content || "";
+    const os = outfitText.indexOf("{");
+    const oe = outfitText.lastIndexOf("}") + 1;
+
+    let outfits: any[] = [];
+    if (os >= 0 && oe > os) {
+      try {
+        const parsed = JSON.parse(outfitText.slice(os, oe));
+        outfits = parsed.outfits || [];
+        const occasionKey = extracted.occasion.toLowerCase();
+        outfits.forEach((outfit: any, i: number) => {
+          if (!outfit.image_url || !outfit.image_url.startsWith("http")) {
+            const occ = (outfit.occasion || occasionKey).toLowerCase();
+            outfit.image_url = OCCASION_IMAGES[occ] || ALL_IMAGES[i % ALL_IMAGES.length];
+          }
+        });
+      } catch {}
+    }
+
+    if (outfits.length === 0) outfits = getDummyOutfits().outfits;
+
+    res.json({
+      success: true,
+      aanya_response: extracted.aanya_response,
+      outfits: outfits.slice(0, 4),
+      extracted: { occasion: extracted.occasion, budget: extracted.budget, body_type: extracted.body_type },
+    });
+  } catch (e: any) {
+    res.json({
+      success: true,
+      aanya_response: "I'd love to help! Try asking me about casual outfits, wedding looks, or office wear! ✨",
+      outfits: getDummyOutfits().outfits.slice(0, 4),
+      extracted: {},
+    });
+  }
+});
+
 export default router;
