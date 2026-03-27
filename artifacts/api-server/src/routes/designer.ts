@@ -183,28 +183,86 @@ router.post("/try-on", async (req, res) => {
       return res.status(400).json({ success: false, message: "Both person image and clothing image URL are required." });
     }
 
+    // Step 1: Fetch the clothing image server-side to convert to base64 (avoids CORS on client)
+    let clothingBase64 = "";
+    let clothingMime = "image/jpeg";
+    try {
+      const imgRes = await fetch(clothing_image_url, {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "FyndMate/1.0" },
+      });
+      if (imgRes.ok) {
+        const buf = Buffer.from(await imgRes.arrayBuffer());
+        clothingBase64 = buf.toString("base64");
+        clothingMime = imgRes.headers.get("content-type") || "image/jpeg";
+      }
+    } catch {}
+
     const hfToken = process.env.HUGGINGFACE_API_KEY;
-    if (!hfToken) {
+
+    // Step 2: Attempt real virtual try-on via HuggingFace Kolors space
+    if (hfToken && clothingBase64) {
+      try {
+        const personDataUrl = person_image_base64.startsWith("data:")
+          ? person_image_base64
+          : `data:image/jpeg;base64,${person_image_base64}`;
+        const clothingDataUrl = `data:${clothingMime};base64,${clothingBase64}`;
+
+        const gradioRes = await fetch(
+          "https://kwai-kolors-kolors-virtual-try-on.hf.space/run/predict",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${hfToken}`,
+            },
+            body: JSON.stringify({
+              data: [personDataUrl, clothingDataUrl, "upper_body"],
+            }),
+            signal: AbortSignal.timeout(30000),
+          }
+        );
+
+        if (gradioRes.ok) {
+          const gradioData = await gradioRes.json() as any;
+          const rawResult = gradioData?.data?.[0];
+          if (rawResult) {
+            const resultB64 = typeof rawResult === "string"
+              ? rawResult.replace(/^data:[^;]+;base64,/, "")
+              : null;
+            if (resultB64) {
+              return res.json({ success: true, result_image: resultB64 });
+            }
+          }
+        }
+      } catch {
+        // fall through to fallback
+      }
+    }
+
+    // Step 3: Return clothing image base64 as fallback so client can do canvas composite
+    if (clothingBase64) {
       return res.json({
         success: false,
-        message: "Virtual try-on service not configured. Showing clothing preview.",
-        fallback_image: clothing_image_url,
+        fallback: true,
+        clothing_image_b64: clothingBase64,
+        clothing_mime: clothingMime,
+        message: "Showing style preview",
       });
     }
 
-    // Use HuggingFace inference API for sentiment-based analysis
-    // IDM-VTON requires Gradio which is Python-only; return a styled fallback with instructions
     return res.json({
       success: false,
-      message: "Virtual try-on is processing. Our AI is analysing your photo — results ready in 30s.",
-      fallback_image: clothing_image_url,
-      status: "processing",
+      fallback: true,
+      clothing_image_url,
+      message: "Showing style preview",
     });
   } catch (e: any) {
     res.json({
       success: false,
-      message: "Try-on temporarily unavailable. Please retry.",
-      fallback_image: req.body?.clothing_image_url || "",
+      fallback: true,
+      clothing_image_url: req.body?.clothing_image_url || "",
+      message: "Try-on temporarily unavailable.",
     });
   }
 });
