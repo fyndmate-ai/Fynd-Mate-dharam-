@@ -38,10 +38,12 @@ export interface ClothingItem {
 }
 
 export interface BodyProfile {
+  gender?: "male" | "female";
   skinTone: string;
   skinToneHex: string;
   height: number;
-  bodyType: "slim" | "athletic" | "curvy" | "plus";
+  bodyType: "slim" | "average" | "athletic" | "curvy" | "plus";
+  photoDataUrl?: string;
 }
 
 export interface SelectedOutfitItem extends ClothingItem {

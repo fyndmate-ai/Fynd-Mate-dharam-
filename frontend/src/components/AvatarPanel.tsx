@@ -104,7 +104,7 @@ const AvatarPanel = ({
       ) : null}
       <button
         onClick={onBuyCompleteLook}
-        className="mt-3 w-full rounded-2xl bg-brand-cyan px-4 py-3 font-medium text-white"
+        className="mt-3 w-full rounded-2xl bg-brand-cyan px-4 py-3 font-medium text-white shadow-[0_10px_24px_rgba(6,182,212,0.35)] transition hover:shadow-[0_14px_28px_rgba(6,182,212,0.45)]"
       >
         Buy Complete Look
       </button>

@@ -1,6 +1,8 @@
+import { AnimatePresence, motion } from "framer-motion";
+import { Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AvatarPanel from "../components/AvatarPanel";
 import ClothingCard from "../components/ClothingCard";
 import { designerMockItems } from "../data/designerMock";
@@ -10,22 +12,16 @@ import { designerSearch } from "../services/api";
 import type { ClothingItem } from "../types";
 
 const DesignerResults = () => {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const query = params.get("q") ?? "";
   const { profile } = useBodyProfile();
-  const { selectedItems, totalPrice, applyItem, removeItem, getItemByCategory, saveCurrentLook, savedLooks } =
-    useSelectedOutfit();
+  const { selectedItems, totalPrice, applyItem, removeItem, getItemByCategory } = useSelectedOutfit();
   const [items, setItems] = useState<ClothingItem[]>([]);
-  const [budgetLock, setBudgetLock] = useState<number | null>(null);
   const [realItemsFound, setRealItemsFound] = useState<number>(0);
-  const [occasionTag, setOccasionTag] = useState<string>("");
-  const [seasonalTag, setSeasonalTag] = useState<string>("");
-  const [recommendationNote, setRecommendationNote] = useState<string>("");
-  const [recommendationBudgetState, setRecommendationBudgetState] = useState<boolean | undefined>(
-    undefined
-  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mobileTryOnOpen, setMobileTryOnOpen] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -33,39 +29,22 @@ const DesignerResults = () => {
       setLoading(true);
       setError("");
       try {
-        const data = await designerSearch(
-          query,
-          profile?.bodyType,
-          profile?.skinTone,
-          undefined
-        );
+        const data = await designerSearch(query, profile?.bodyType, profile?.skinTone, undefined);
         if (ignore) return;
-        setItems(data.items.length > 0 ? data.items : designerMockItems);
-        setBudgetLock(data.budget_lock ?? null);
+        setItems((data.items.length > 0 ? data.items : designerMockItems).slice(0, 9));
         setRealItemsFound(data.real_items_found ?? 0);
-        setOccasionTag(data.occasion_tag ?? "");
-        setSeasonalTag(data.seasonal_tag ?? "");
-        if (data.recommendations && data.recommendations.length > 0) {
-          setRecommendationNote(data.recommendations[0].note);
-          setRecommendationBudgetState(data.recommendations[0].within_budget);
-        } else {
-          setRecommendationNote("");
-          setRecommendationBudgetState(undefined);
-        }
       } catch {
         if (ignore) return;
-        setError("Could not fetch live outfits. Showing fallback looks.");
-        setItems(designerMockItems);
+        setError("Could not fetch live outfits. Showing curated suggestions.");
+        setItems(designerMockItems.slice(0, 9));
         setRealItemsFound(0);
-        setRecommendationNote("");
-        setRecommendationBudgetState(undefined);
       } finally {
         if (!ignore) setLoading(false);
       }
     };
 
     if (!query.trim()) {
-      setItems(designerMockItems);
+      setItems(designerMockItems.slice(0, 9));
       setLoading(false);
       return;
     }
@@ -77,137 +56,144 @@ const DesignerResults = () => {
 
   const handleBuyCompleteLook = () => {
     if (selectedItems.length === 0) {
-      toast.error("Select items first to buy complete look.");
+      toast.error("Select items first to buy this look.");
       return;
     }
     selectedItems.forEach((item) => {
       window.open(item.buy_url, "_blank", "noopener,noreferrer");
     });
-    toast.success("Opened buy links for selected outfit.");
+    toast.success("Opened buy links for your selected look.");
   };
 
-  const handleShareLook = async () => {
-    if (selectedItems.length === 0) {
-      toast.error("Select items first to share look.");
-      return;
-    }
-    const shareText = `My FyndMate look (${query || "custom look"}) - Total Rs ${totalPrice.toLocaleString(
-      "en-IN"
-    )}: ${selectedItems.map((item) => item.name).join(", ")}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "FyndMate Look", text: shareText });
-        toast.success("Look shared.");
-        return;
-      } catch {
-        // fall through to clipboard
-      }
-    }
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(shareText);
-      toast.success("Look details copied to clipboard.");
-      return;
-    }
-    toast.error("Sharing is not available in this browser.");
-  };
+  const cards = items.length > 0 ? items : designerMockItems.slice(0, 9);
 
-  const handleSaveLook = () => {
-    const saved = saveCurrentLook(query);
-    if (!saved) {
-      toast.error("Select items first to save look.");
-      return;
+  useEffect(() => {
+    if (!profile) {
+      navigate("/designer/onboarding", { replace: true });
     }
-    toast.success("Look saved to your collection.");
-  };
+  }, [navigate, profile]);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 md:px-6">
-      <h1 className="mb-6 text-2xl font-semibold text-apple-dark">
-        Styling results for: <span className="text-[#06B6D4]">{query}</span>
-      </h1>
-      <p className="mb-3 text-xs text-apple-gray">
-        {realItemsFound > 0 ? `${realItemsFound} live clothing items scanned` : "Using fallback styling catalog"}
-      </p>
-      <div className="mb-5 flex flex-wrap gap-2">
-        {occasionTag ? (
-          <span className="rounded-pill bg-[#E6F1FB] px-3 py-1 text-xs font-semibold text-[#0C447C]">
-            Occasion: {occasionTag}
-          </span>
-        ) : null}
-        {seasonalTag ? (
-          <span className="rounded-pill bg-[#FFF3E0] px-3 py-1 text-xs font-semibold text-[#E65100]">
-            Season: {seasonalTag}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[30%_45%_25%]">
-        <aside className="rounded-2xl border border-apple-border bg-white p-4">
-          <p className="font-medium text-apple-dark">Refine Search</p>
-          <p className="mt-2 text-sm text-apple-gray">{query}</p>
-          <div className="mt-4 rounded-xl bg-apple-card p-3 text-sm text-apple-dark">
-            <p className="font-medium">Body Profile</p>
-            <p className="mt-1 text-apple-gray">
-              {profile ? `${profile.bodyType} · ${profile.height}cm · ${profile.skinTone}` : "Not set"}
-            </p>
+    <main className="min-h-screen bg-gradient-to-b from-[#F8FAFF] via-white to-[#F7F9FD] px-4 py-6 sm:px-6">
+      <section className="mx-auto w-full max-w-7xl">
+        <motion.header initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+          <div className="inline-flex items-center gap-2 rounded-pill border border-apple-border bg-white px-3 py-1.5 text-xs text-apple-gray">
+            <Sparkles size={14} className="text-brand-cyan" />
+            AI suggestions from multiple stores
           </div>
-          {budgetLock ? (
-            <p className="mt-3 text-xs text-[#0C447C]">
-              Budget lock: under Rs {budgetLock.toLocaleString("en-IN")}
-            </p>
-          ) : null}
-          {error ? <p className="mt-3 text-xs text-[#C62828]">{error}</p> : null}
-          {loading ? <p className="mt-3 text-xs text-apple-gray">Finding outfit suggestions...</p> : null}
-          {savedLooks.length > 0 ? (
-            <div className="mt-4 rounded-xl border border-apple-border bg-white p-3">
-              <p className="text-xs font-semibold text-apple-dark">Saved Looks: {savedLooks.length}</p>
-              <Link to="/designer/saved" className="mt-1 inline-block text-xs font-medium text-apple-blue">
-                View collection
-              </Link>
+          <h1 className="mt-3 text-2xl font-semibold text-apple-dark sm:text-3xl">
+            {query ? `Results for "${query}"` : "AI outfit suggestions"}
+          </h1>
+          <p className="mt-1 text-sm text-apple-gray">
+            {realItemsFound > 0 ? `${realItemsFound} live items scanned` : "Curated options ready for virtual try-on"}
+          </p>
+          {loading ? (
+            <div className="mt-3 flex items-center gap-2 text-sm text-apple-gray">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="ml-1">AI is styling your look</span>
             </div>
           ) : null}
-        </aside>
+          {error ? <p className="mt-2 text-sm text-[#C62828]">{error}</p> : null}
+        </motion.header>
 
-        <section className="grid grid-cols-2 gap-2 rounded-2xl border border-apple-border bg-white p-3 sm:gap-3 sm:p-4 md:grid-cols-3">
-          {(items.length > 0 ? items : designerMockItems).map((item) => (
-            <ClothingCard
-              key={item.id}
-              item={item}
-              selected={selectedItems.some((selected) => selected.id === item.id)}
-              onSelect={applyItem}
+        <div className="hidden gap-6 lg:grid lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="rounded-[24px] border border-apple-border bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.07)]">
+            <div className="grid grid-cols-3 gap-3">
+              {cards.map((item) => (
+                <motion.div key={item.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                  <ClothingCard
+                    item={item}
+                    selected={selectedItems.some((selected) => selected.id === item.id)}
+                    onSelect={applyItem}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          <aside className="rounded-[24px] border border-apple-border bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.07)]">
+            <p className="mb-3 text-sm font-semibold text-brand-cyan">Try before you buy</p>
+            <AvatarPanel
+              profile={profile}
+              selectedItems={selectedItems}
+              totalPrice={totalPrice}
+              top={getItemByCategory("top")}
+              bottom={getItemByCategory("bottom")}
+              shoes={getItemByCategory("shoes")}
+              accessory={getItemByCategory("accessory")}
+              onRemove={removeItem}
+              onBuyCompleteLook={handleBuyCompleteLook}
             />
-          ))}
-        </section>
-
-        <div className="lg:sticky lg:top-20 lg:self-start">
-          <AvatarPanel
-            profile={profile}
-            selectedItems={selectedItems}
-            totalPrice={totalPrice}
-            top={getItemByCategory("top")}
-            bottom={getItemByCategory("bottom")}
-            shoes={getItemByCategory("shoes")}
-            accessory={getItemByCategory("accessory")}
-            onRemove={removeItem}
-            recommendationNote={recommendationNote}
-            withinBudget={recommendationBudgetState}
-            onBuyCompleteLook={handleBuyCompleteLook}
-            onShareLook={handleShareLook}
-            onSaveLook={handleSaveLook}
-          />
+          </aside>
         </div>
-      </div>
 
-      {selectedItems.length > 0 ? (
-        <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-apple-border bg-white/95 p-3 backdrop-blur lg:hidden">
+        <section className="space-y-4 lg:hidden">
+          <div className="rounded-2xl border border-apple-border bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {cards.map((item) => (
+                <ClothingCard
+                  key={item.id}
+                  item={item}
+                  selected={selectedItems.some((selected) => selected.id === item.id)}
+                  onSelect={applyItem}
+                />
+              ))}
+            </div>
+          </div>
+
           <button
-            onClick={handleBuyCompleteLook}
-            className="w-full rounded-xl bg-brand-cyan px-4 py-3 text-sm font-semibold text-white"
+            onClick={() => setMobileTryOnOpen(true)}
+            className="w-full rounded-2xl bg-apple-blue px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,113,227,0.3)] transition hover:bg-apple-blue-hover"
           >
-            Buy Complete Look · Rs {totalPrice.toLocaleString("en-IN")}
+            View Try-On
           </button>
-        </div>
-      ) : null}
+        </section>
+      </section>
+
+      <AnimatePresence>
+        {mobileTryOnOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex flex-col bg-white p-4"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-brand-cyan">Try before you buy</p>
+              <button
+                onClick={() => setMobileTryOnOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-apple-border text-apple-dark"
+                aria-label="Close try-on view"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto rounded-2xl border border-apple-border bg-[#F8FAFF] p-3">
+              <AvatarPanel
+                profile={profile}
+                selectedItems={selectedItems}
+                totalPrice={totalPrice}
+                top={getItemByCategory("top")}
+                bottom={getItemByCategory("bottom")}
+                shoes={getItemByCategory("shoes")}
+                accessory={getItemByCategory("accessory")}
+                onRemove={removeItem}
+                onBuyCompleteLook={handleBuyCompleteLook}
+              />
+            </div>
+
+            <button
+              onClick={handleBuyCompleteLook}
+              className="mt-4 w-full rounded-2xl bg-brand-cyan px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(6,182,212,0.35)]"
+            >
+              Buy this look · Rs {totalPrice.toLocaleString("en-IN")}
+            </button>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </main>
   );
 };
